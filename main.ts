@@ -7,7 +7,11 @@ import {
     setIcon,
     getIconIds,
     Platform,
-    PluginManifest
+    PluginManifest,
+    Modal,
+    FuzzyMatch,
+    ButtonComponent,
+    ExtraButtonComponent
 } from 'obsidian';
 
 // ============================================================================
@@ -38,6 +42,8 @@ interface PluginRenamerSettings {
     names: Record<string, string>;
     icons: Record<string, string>;
     hidden: Record<string, boolean>;
+    categories: Record<string, string[]>;
+    collapsed: Record<string, boolean>;
 }
 
 interface SearchItem {
@@ -54,7 +60,9 @@ interface SearchItem {
 const DEFAULT_SETTINGS: PluginRenamerSettings = {
     names: {},
     icons: {},
-    hidden: {}
+    hidden: {},
+    categories: {},
+    collapsed: {}
 };
 
 // ============================================================================
@@ -104,6 +112,254 @@ class IconPickerModal extends FuzzySuggestModal<string> {
 }
 
 // ============================================================================
+// 分类管理弹窗 (已美化 & 增加重命名功能)
+// ============================================================================
+
+class CategoryManagerModal extends Modal {
+    plugin: PluginRenamer;
+    refreshMainTab: () => void;
+    currentView: 'list' | 'edit' = 'list';
+    editingCategory: string | null = null;
+    renamingCategory: string | null = null; // 用于追踪正在重命名的分类
+    tempCategoryName: string = '';
+
+    constructor(app: App, plugin: PluginRenamer, refreshMainTab: () => void) {
+        super(app);
+        this.plugin = plugin;
+        this.refreshMainTab = refreshMainTab;
+    }
+
+    onOpen() {
+        this.display();
+    }
+
+    onClose() {
+        this.contentEl.empty();
+        this.refreshMainTab();
+    }
+
+    display() {
+        this.contentEl.empty();
+        if (this.currentView === 'list') {
+            this.renderList();
+        } else {
+            this.renderEdit();
+        }
+    }
+
+    renderList() {
+        this.titleEl.setText('📁 管理插件分类');
+
+        // 美化：新建分类卡片区域
+        const createSection = this.contentEl.createDiv({
+            attr: { style: 'background: var(--background-secondary); padding: 15px; border-radius: 8px; margin-bottom: 25px; border: 1px solid var(--background-modifier-border);' }
+        });
+        
+        createSection.createEl('h4', { text: '✨ 新建分类', attr: { style: 'margin-top: 0; margin-bottom: 10px; color: var(--text-normal);' } });
+
+        const createSetting = new Setting(createSection)
+            .setName('分类名称')
+            .setDesc('创建一个新的分类模块以归纳插件')
+            .addText(text => text
+                .setPlaceholder('输入分类名称...')
+                .setValue(this.tempCategoryName)
+                .onChange(val => this.tempCategoryName = val)
+            )
+            .addButton(btn => btn
+                .setButtonText('创建分类')
+                .setCta()
+                .onClick(async () => {
+                    const name = this.tempCategoryName.trim();
+                    if (name && !this.plugin.settings.categories[name]) {
+                        this.plugin.settings.categories[name] = [];
+                        await this.plugin.saveSettings();
+                        this.tempCategoryName = '';
+                        this.display();
+                    }
+                })
+            );
+        createSetting.settingEl.style.border = 'none';
+        createSetting.settingEl.style.padding = '0';
+
+        const catKeys = Object.keys(this.plugin.settings.categories);
+        if (catKeys.length > 0) {
+            this.contentEl.createEl('h4', { text: '📂 现有分类', attr: { style: 'margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid var(--background-modifier-border); color: var(--text-normal);' } });
+            
+            // 美化：列表容器
+            const listContainer = this.contentEl.createDiv({
+                attr: { style: 'display: flex; flex-direction: column; gap: 12px; max-height: 45vh; overflow-y: auto; padding-right: 5px;' }
+            });
+
+            for (const cat of catKeys) {
+                const itemDiv = listContainer.createDiv({
+                    attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px 15px; background: var(--background-primary); transition: all 0.2s ease;' }
+                });
+
+                // 如果当前正处于重命名状态
+                if (this.renamingCategory === cat) {
+                    let newCatName = cat;
+                    const renameSetting = new Setting(itemDiv)
+                        .setName('修改名称')
+                        .addText(text => text
+                            .setValue(cat)
+                            .onChange(val => newCatName = val)
+                        )
+                        .addButton(btn => btn
+                            .setButtonText('保存')
+                            .setCta()
+                            .onClick(async () => {
+                                newCatName = newCatName.trim();
+                                if (newCatName && newCatName !== cat && !this.plugin.settings.categories[newCatName]) {
+                                    // 迁移数据
+                                    this.plugin.settings.categories[newCatName] = this.plugin.settings.categories[cat];
+                                    delete this.plugin.settings.categories[cat];
+                                    
+                                    // 迁移折叠状态
+                                    if (this.plugin.settings.collapsed[cat] !== undefined) {
+                                        this.plugin.settings.collapsed[newCatName] = this.plugin.settings.collapsed[cat];
+                                        delete this.plugin.settings.collapsed[cat];
+                                    }
+                                    
+                                    await this.plugin.saveSettings();
+                                }
+                                this.renamingCategory = null;
+                                this.display();
+                            })
+                        )
+                        .addButton(btn => btn
+                            .setButtonText('取消')
+                            .onClick(() => {
+                                this.renamingCategory = null;
+                                this.display();
+                            })
+                        );
+                    renameSetting.settingEl.style.border = 'none';
+                    renameSetting.settingEl.style.padding = '0';
+                } 
+                // 正常显示状态
+                else {
+                    const viewSetting = new Setting(itemDiv)
+                        .setName(cat)
+                        .setDesc(`包含 ${this.plugin.settings.categories[cat].length} 个插件`)
+                        .addButton(btn => btn
+                            .setIcon('pencil')
+                            .setTooltip('修改分类名称')
+                            .onClick(() => {
+                                this.renamingCategory = cat;
+                                this.display();
+                            })
+                        )
+                        .addButton(btn => btn
+                            .setIcon('list')
+                            .setTooltip('管理分类内的插件')
+                            .onClick(() => {
+                                this.editingCategory = cat;
+                                this.currentView = 'edit';
+                                this.display();
+                            })
+                        )
+                        .addButton(btn => btn
+                            .setIcon('trash')
+                            .setTooltip('删除该分类（插件将被移回原列表）')
+                            .setWarning()
+                            .onClick(async () => {
+                                delete this.plugin.settings.categories[cat];
+                                delete this.plugin.settings.collapsed[cat];
+                                await this.plugin.saveSettings();
+                                this.display();
+                            })
+                        );
+                    viewSetting.settingEl.style.border = 'none';
+                    viewSetting.settingEl.style.padding = '0';
+                }
+            }
+        } else {
+            this.contentEl.createEl('p', { 
+                text: '当前没有自定义分类。上方创建后，分类会显示在此处。', 
+                attr: { style: 'text-align: center; color: var(--text-muted); margin-top: 20px; padding: 25px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--background-modifier-border);' } 
+            });
+        }
+    }
+
+    renderEdit() {
+        this.titleEl.setText(`📝 编辑分类插件: ${this.editingCategory}`);
+
+        const headerDiv = this.contentEl.createDiv({ attr: { style: 'background: var(--background-secondary); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--background-modifier-border); margin-bottom: 20px;' } });
+        const topSetting = new Setting(headerDiv)
+            .setName('勾选要加入此分类的插件')
+            .setDesc('提示：已在其他分类中的插件会自动隐藏。')
+            .addButton(btn => btn
+                .setButtonText('返回列表')
+                .onClick(() => {
+                    this.currentView = 'list';
+                    this.editingCategory = null;
+                    this.display();
+                })
+            );
+        topSetting.settingEl.style.border = 'none';
+        topSetting.settingEl.style.padding = '0';
+
+        const internalApp = this.app as InternalApp;
+        const manifests = internalApp.plugins.manifests;
+        const pluginTabs = internalApp.setting.pluginTabs || [];
+        const communityTabs = pluginTabs.filter(tab => !!manifests[tab.id]);
+
+        communityTabs.sort((a, b) => {
+            const nameA = this.plugin.settings.names[a.id] || manifests[a.id]?.name || a.name || a.id;
+            const nameB = this.plugin.settings.names[b.id] || manifests[b.id]?.name || b.name || b.id;
+            return nameA.localeCompare(nameB);
+        });
+
+        const currentCatPlugins = this.plugin.settings.categories[this.editingCategory!] || [];
+
+        const otherCatPlugins = new Set<string>();
+        for (const cat in this.plugin.settings.categories) {
+            if (cat !== this.editingCategory) {
+                this.plugin.settings.categories[cat].forEach(id => otherCatPlugins.add(id));
+            }
+        }
+
+        const container = this.contentEl.createDiv({ 
+            attr: { style: 'max-height: 50vh; overflow-y: auto; padding: 15px; border: 1px solid var(--background-modifier-border); border-radius: 8px; display: flex; flex-direction: column; gap: 5px;' }
+        });
+
+        let availableCount = 0;
+
+        for (const tab of communityTabs) {
+            if (otherCatPlugins.has(tab.id)) continue; 
+            
+            availableCount++;
+            const originalName = manifests[tab.id]?.name || tab.name || tab.id;
+            const customName = this.plugin.settings.names[tab.id];
+            const displayName = customName ? `${customName} (${originalName})` : originalName;
+
+            const row = new Setting(container)
+                .setName(displayName)
+                .addToggle(toggle => toggle
+                    .setValue(currentCatPlugins.includes(tab.id))
+                    .onChange(async (val) => {
+                        let list = this.plugin.settings.categories[this.editingCategory!];
+                        if (val) {
+                            if (!list.includes(tab.id)) list.push(tab.id);
+                        } else {
+                            list = list.filter(id => id !== tab.id);
+                        }
+                        this.plugin.settings.categories[this.editingCategory!] = list;
+                        await this.plugin.saveSettings();
+                    })
+                );
+            row.settingEl.style.padding = '8px 10px';
+            row.settingEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+            row.settingEl.style.borderTop = 'none';
+        }
+
+        if (availableCount === 0) {
+            container.createEl('p', { text: '没有可用的插件了，其他插件都已被分配完毕。', attr: { style: 'text-align: center; color: var(--text-muted); padding: 20px 0;' } });
+        }
+    }
+}
+
+// ============================================================================
 // 主插件逻辑
 // ============================================================================
 
@@ -113,14 +369,12 @@ export default class PluginRenamer extends Plugin {
     mutationObserver: MutationObserver | null = null;
     originalSettingOpen?: (...args: any[]) => void;
 
-    // 断言 app 为包含内部 API 的 App
     get internalApp(): InternalApp {
         return this.app as InternalApp;
     }
 
     async onload() {
         await this.loadSettings();
-
         this.isApplying = false;
         this.patchSettingOpen();
 
@@ -148,7 +402,9 @@ export default class PluginRenamer extends Plugin {
         this.settings = {
             names: { ...DEFAULT_SETTINGS.names, ...(loadedData.names || {}) },
             icons: { ...DEFAULT_SETTINGS.icons, ...(loadedData.icons || {}) },
-            hidden: { ...DEFAULT_SETTINGS.hidden, ...(loadedData.hidden || {}) }
+            hidden: { ...DEFAULT_SETTINGS.hidden, ...(loadedData.hidden || {}) },
+            categories: { ...DEFAULT_SETTINGS.categories, ...(loadedData.categories || {}) },
+            collapsed: { ...DEFAULT_SETTINGS.collapsed, ...(loadedData.collapsed || {}) }
         };
     }
 
@@ -251,7 +507,6 @@ export default class PluginRenamer extends Plugin {
         const isThirdParty = !!manifests[pluginId];
         const isSelf = pluginId === this.manifest.id;
 
-        // 置顶自身
         if (isSelf && tabEl.parentElement && tabEl.parentElement.firstElementChild !== tabEl) {
             tabEl.parentElement.prepend(tabEl);
         }
@@ -263,7 +518,6 @@ export default class PluginRenamer extends Plugin {
             targetIcon = isThirdParty ? 'puzzle' : null;
         }
 
-        // 1. 处理名称
         if (customName && customName.trim() !== "") {
             if (!tabEl.dataset.originalName) {
                 const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
@@ -299,7 +553,6 @@ export default class PluginRenamer extends Plugin {
             delete tabEl.dataset.originalName;
         }
 
-        // 2. 处理显示与隐藏
         if (this.settings.hidden[pluginId] && !isSelf) {
             tabEl.style.display = "none";
         } else {
@@ -312,7 +565,6 @@ export default class PluginRenamer extends Plugin {
             }
         }
 
-        // 3. 处理图标
         let customIconEl = tabEl.querySelector<HTMLElement>('.vertical-tab-nav-item-icon.custom-icon');
         let nativeIconEl = tabEl.querySelector<HTMLElement>('.vertical-tab-nav-item-icon:not(.custom-icon)');
 
@@ -411,7 +663,7 @@ class PluginRenamerSettingTab extends PluginSettingTab {
 
         const titleArea = topHeaderContainer.createDiv();
         titleArea.createEl('h2', { text: '⚙️ 插件名称与图标自定义', cls: 'setting-item-heading' }).style.border = 'none';
-        titleArea.createEl('p', { text: '点击眼睛隐藏/显示，中间改图标，右侧改名称。', cls: "setting-item-description" });
+        titleArea.createEl('p', { text: '点击眼睛隐藏/显示，中间改图标，右侧改名称。可分类管理。', cls: "setting-item-description" });
 
         const searchInput = topHeaderContainer.createEl('input', {
             type: 'search',
@@ -437,7 +689,7 @@ class PluginRenamerSettingTab extends PluginSettingTab {
         communityPluginTabs.sort(sortByOriginalName);
 
         const searchItems: SearchItem[] = [];
-        const groups: { headingEl: HTMLElement, gridContainer: HTMLElement }[] = [];
+        const groups: { title: string, headingEl: HTMLElement, gridContainer: HTMLElement, toggleBtn?: ExtraButtonComponent }[] = [];
 
         const createGridContainer = (parentEl: HTMLElement) => {
             const gridEl = parentEl.createDiv();
@@ -598,33 +850,92 @@ class PluginRenamerSettingTab extends PluginSettingTab {
 
         const mainContentEl = containerEl.createDiv();
 
-        if (settingTabs.length > 0) {
-            const heading = new Setting(mainContentEl).setName('选项').setHeading();
+        // 重新设计的渲染控制函数，增加按需开关折叠和齿轮按钮的能力
+        const renderSection = (title: string, tabs: SettingTabItem[], isThirdParty: boolean, options: { showCategoryBtn?: boolean, allowCollapse?: boolean } = {}) => {
+            const { showCategoryBtn = false, allowCollapse = true } = options;
+            
+            if (tabs.length === 0 && !showCategoryBtn) return; 
+
+            const headingSetting = new Setting(mainContentEl).setName(title).setHeading();
             const grid = createGridContainer(mainContentEl);
-            groups.push({ headingEl: heading.settingEl, gridContainer: grid });
-            settingTabs.forEach(tab => renderSettingItem(grid, tab, false));
+            
+            // 是否读取折叠状态（只有允许折叠的模块才生效，第三方模块禁止折叠）
+            let isCollapsed = allowCollapse ? (this.plugin.settings.collapsed[title] || false) : false;
+            grid.style.display = isCollapsed ? 'none' : 'grid';
+
+            // 恒定存在的分类管理按钮 (齿轮)
+            if (showCategoryBtn) {
+                headingSetting.addExtraButton(btn => {
+                    btn.setIcon('folder-cog')
+                        .setTooltip('分类管理')
+                        .onClick(() => {
+                            new CategoryManagerModal(this.app, this.plugin, () => this.display()).open();
+                        });
+                });
+            }
+
+            let currentToggleBtn: ExtraButtonComponent | undefined;
+            
+            // 仅在允许折叠时添加折叠按钮
+            if (allowCollapse) {
+                headingSetting.addExtraButton(btn => {
+                    currentToggleBtn = btn;
+                    btn.setIcon(isCollapsed ? 'chevron-right' : 'chevron-down')
+                        .setTooltip(isCollapsed ? '展开' : '折叠')
+                        .onClick(async () => {
+                            isCollapsed = !isCollapsed;
+                            this.plugin.settings.collapsed[title] = isCollapsed;
+                            await this.plugin.saveSettings();
+                            btn.setIcon(isCollapsed ? 'chevron-right' : 'chevron-down')
+                               .setTooltip(isCollapsed ? '展开' : '折叠');
+                            grid.style.display = isCollapsed ? 'none' : 'grid';
+                        });
+                });
+            }
+
+            groups.push({ title, headingEl: headingSetting.settingEl, gridContainer: grid, toggleBtn: currentToggleBtn });
+            tabs.forEach(tab => renderSettingItem(grid, tab, isThirdParty));
+        };
+
+
+        if (settingTabs.length > 0) {
+            renderSection('选项', settingTabs, false);
         }
 
         if (corePluginTabs.length > 0) {
-            const heading = new Setting(mainContentEl).setName('核心插件').setHeading();
-            const grid = createGridContainer(mainContentEl);
-            groups.push({ headingEl: heading.settingEl, gridContainer: grid });
-            corePluginTabs.forEach(tab => renderSettingItem(grid, tab, false));
+            renderSection('核心插件', corePluginTabs, false);
         }
 
-        if (communityPluginTabs.length > 0) {
-            const heading = new Setting(mainContentEl).setName('第三方插件').setHeading();
-            const grid = createGridContainer(mainContentEl);
-            groups.push({ headingEl: heading.settingEl, gridContainer: grid });
-            communityPluginTabs.forEach(tab => renderSettingItem(grid, tab, true));
+        const categories = this.plugin.settings.categories || {};
+        
+        const assignedIds = new Set<string>();
+        for (const cat in categories) {
+            categories[cat].forEach(id => assignedIds.add(id));
         }
 
+        for (const catName in categories) {
+            const ids = categories[catName];
+            const catTabs = communityPluginTabs.filter(tab => ids.includes(tab.id));
+            renderSection(catName, catTabs, true);
+        }
+
+        // 剩余未分类的第三方插件
+        const otherTabs = communityPluginTabs.filter(tab => !assignedIds.has(tab.id));
+        
+        // 渲染第三方插件区域 (标题永远固定为“第三方插件”，携带管理按钮，并且不可折叠)
+        renderSection('第三方插件', otherTabs, true, { 
+            showCategoryBtn: true, 
+            allowCollapse: false 
+        });
+
+        // ======================= 搜索逻辑 =======================
         let searchTimeout: number;
         searchInput.addEventListener('input', (e) => {
             window.clearTimeout(searchTimeout);
             searchTimeout = window.setTimeout(() => {
                 const target = e.target as HTMLInputElement;
                 const query = target.value.toLowerCase().trim();
+                const isSearching = query.length > 0;
 
                 searchItems.forEach(item => {
                     const customName = item.getCustomName();
@@ -635,9 +946,24 @@ class PluginRenamerSettingTab extends PluginSettingTab {
                 });
 
                 groups.forEach(group => {
-                    const hasVisible = Array.from(group.gridContainer.children).some(el => (el as HTMLElement).style.display !== 'none');
-                    group.headingEl.style.display = hasVisible ? '' : 'none';
-                    group.gridContainer.style.display = hasVisible ? 'grid' : 'none';
+                    if (isSearching) {
+                        const hasVisible = Array.from(group.gridContainer.children).some(el => (el as HTMLElement).style.display !== 'none');
+                        group.headingEl.style.display = hasVisible ? '' : 'none';
+                        group.gridContainer.style.display = hasVisible ? 'grid' : 'none';
+                    } else {
+                        group.headingEl.style.display = '';
+                        
+                        // 只对拥有折叠按钮（允许折叠）的模块处理折叠恢复，第三方插件组保持展开
+                        let isCurrentlyCollapsed = false;
+                        if (group.toggleBtn) {
+                            isCurrentlyCollapsed = this.plugin.settings.collapsed[group.title] || false;
+                            group.toggleBtn.setIcon(isCurrentlyCollapsed ? 'chevron-right' : 'chevron-down')
+                                           .setTooltip(isCurrentlyCollapsed ? '展开' : '折叠');
+                        }
+                        group.gridContainer.style.display = isCurrentlyCollapsed ? 'none' : 'grid';
+                        
+                        Array.from(group.gridContainer.children).forEach(el => (el as HTMLElement).style.display = 'flex');
+                    }
                 });
             }, 150);
         });
