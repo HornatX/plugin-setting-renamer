@@ -582,6 +582,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       const id = tab.getAttribute("data-setting-id");
       return id && manifests[id];
     });
+    let insertAnchor = nativeCommunityGroup ? nativeCommunityGroup.nextSibling : null;
     this.settings.categoryOrder.forEach((catName) => {
       const pluginIds = this.settings.categories[catName] || [];
       if (pluginIds.length === 0) return;
@@ -595,14 +596,14 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       if (isCategoryHidden) {
         groupEl.style.display = "none";
       }
-      const titleEl = document.createElement("div");
-      titleEl.className = "vertical-tab-header-group-title custom-category-header";
-      titleEl.textContent = catName;
-      groupEl.appendChild(titleEl);
       tabsForCategory.forEach((tab) => {
         groupEl.appendChild(tab);
       });
-      headerContainer.appendChild(groupEl);
+      if (insertAnchor) {
+        headerContainer.insertBefore(groupEl, insertAnchor);
+      } else {
+        headerContainer.appendChild(groupEl);
+      }
     });
     const nativeGroups = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group:not(.custom-category-group)"));
     nativeGroups.forEach((group) => {
@@ -623,16 +624,12 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       }
       if (catName) {
         const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-        if (isCategoryHidden) {
+        if (catName === "\u7B2C\u4E09\u65B9\u63D2\u4EF6") {
+          group.style.display = "";
+        } else if (isCategoryHidden) {
           group.style.display = "none";
         } else {
           group.style.display = "";
-          if (catName === "\u7B2C\u4E09\u65B9\u63D2\u4EF6") {
-            const remainingTabs = Array.from(group.querySelectorAll(".vertical-tab-nav-item"));
-            if (remainingTabs.length === 0) {
-              group.style.display = "none";
-            }
-          }
         }
       }
     });

@@ -575,7 +575,7 @@ export default class PluginRenamer extends Plugin {
                     pendingNodes.clear();
                     
                     if (this.mutationObserver) {
-                        this.mutationObserver.takeRecords(); // 防止由于重新挂载节点而导致的死循环
+                        this.mutationObserver.takeRecords(); 
                     }
                     this.isApplying = false;
                 }, 10);
@@ -765,7 +765,10 @@ export default class PluginRenamer extends Plugin {
             return id && manifests[id]; 
         });
 
-        // 4. 为每个分类创建标准的 group 结构并挂载
+        // 定位原生第三方插件之后的插入点，保证新分组都跟在“第三方插件”下方
+        let insertAnchor = nativeCommunityGroup ? nativeCommunityGroup.nextSibling : null;
+
+        // 4. 为每个分类创建标准的 group 结构并挂载 (这次去掉标题，只留白)
         this.settings.categoryOrder.forEach(catName => {
             const pluginIds = this.settings.categories[catName] || [];
             if (pluginIds.length === 0) return;
@@ -776,7 +779,7 @@ export default class PluginRenamer extends Plugin {
 
             if (tabsForCategory.length === 0) return;
 
-            // 像原生一样赋予 vertical-tab-header-group 容器，完美继承 padding 及排版规范
+            // 像原生一样赋予 vertical-tab-header-group 容器，以此利用其默认的 padding 形成留白
             const groupEl = document.createElement('div');
             groupEl.className = 'vertical-tab-header-group custom-category-group';
             
@@ -785,20 +788,21 @@ export default class PluginRenamer extends Plugin {
                 groupEl.style.display = 'none';
             }
 
-            const titleEl = document.createElement('div');
-            titleEl.className = 'vertical-tab-header-group-title custom-category-header';
-            titleEl.textContent = catName;
-            
-            groupEl.appendChild(titleEl);
+            // 注意：取消此处对 custom-category-header 的创建，只作纯间距容器
 
             tabsForCategory.forEach(tab => {
                 groupEl.appendChild(tab);
             });
 
-            headerContainer.appendChild(groupEl);
+            // 顺序插入保证了排序的一致性
+            if (insertAnchor) {
+                headerContainer.insertBefore(groupEl, insertAnchor);
+            } else {
+                headerContainer.appendChild(groupEl);
+            }
         });
 
-        // 5. 处理官方原生包含外层容器的情况，隐藏整个 Group 而不仅是 Title 
+        // 5. 处理官方原生包含外层容器的情况
         const nativeGroups = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)'));
         
         nativeGroups.forEach(group => {
@@ -823,18 +827,13 @@ export default class PluginRenamer extends Plugin {
             if (catName) {
                 const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
                 
-                if (isCategoryHidden) {
-                    group.style.display = 'none'; // 彻底隐藏外层容器，清除底端空隙
+                // 核心改动：如果该组是“第三方插件”，永远不要隐藏，以此保留“第三方插件”这几个字
+                if (catName === '第三方插件') {
+                    group.style.display = '';
+                } else if (isCategoryHidden) {
+                    group.style.display = 'none'; // 彻底隐藏其它原生的外层容器
                 } else {
                     group.style.display = '';
-                    
-                    if (catName === '第三方插件') {
-                        const remainingTabs = Array.from(group.querySelectorAll<HTMLElement>('.vertical-tab-nav-item'));
-                        // 如果所有第三方插件都分配完毕，自动隐藏第三方插件原生分区
-                        if (remainingTabs.length === 0) {
-                            group.style.display = 'none';
-                        }
-                    }
                 }
             }
         });
