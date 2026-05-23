@@ -10,7 +10,6 @@ import {
     PluginManifest,
     Modal,
     FuzzyMatch,
-    ButtonComponent,
     ExtraButtonComponent
 } from 'obsidian';
 
@@ -42,7 +41,9 @@ interface PluginRenamerSettings {
     names: Record<string, string>;
     icons: Record<string, string>;
     hidden: Record<string, boolean>;
+    hiddenCategories: Record<string, boolean>; // 保存分类的全部隐藏状态
     categories: Record<string, string[]>;
+    categoryOrder: string[]; 
     collapsed: Record<string, boolean>;
 }
 
@@ -61,7 +62,9 @@ const DEFAULT_SETTINGS: PluginRenamerSettings = {
     names: {},
     icons: {},
     hidden: {},
+    hiddenCategories: {},
     categories: {},
+    categoryOrder: [],
     collapsed: {}
 };
 
@@ -112,7 +115,7 @@ class IconPickerModal extends FuzzySuggestModal<string> {
 }
 
 // ============================================================================
-// 分类管理弹窗 (已美化 & 增加重命名功能)
+// 分类管理弹窗 (支持拖拽排序 & 重命名)
 // ============================================================================
 
 class CategoryManagerModal extends Modal {
@@ -120,7 +123,7 @@ class CategoryManagerModal extends Modal {
     refreshMainTab: () => void;
     currentView: 'list' | 'edit' = 'list';
     editingCategory: string | null = null;
-    renamingCategory: string | null = null; // 用于追踪正在重命名的分类
+    renamingCategory: string | null = null;
     tempCategoryName: string = '';
 
     constructor(app: App, plugin: PluginRenamer, refreshMainTab: () => void) {
@@ -150,7 +153,7 @@ class CategoryManagerModal extends Modal {
     renderList() {
         this.titleEl.setText('📁 管理插件分类');
 
-        // 美化：新建分类卡片区域
+        // 新建分类区域
         const createSection = this.contentEl.createDiv({
             attr: { style: 'background: var(--background-secondary); padding: 15px; border-radius: 8px; margin-bottom: 25px; border: 1px solid var(--background-modifier-border);' }
         });
@@ -159,7 +162,7 @@ class CategoryManagerModal extends Modal {
 
         const createSetting = new Setting(createSection)
             .setName('分类名称')
-            .setDesc('创建一个新的分类模块以归纳插件')
+            .setDesc('创建一个新的分类模块以归纳插件（不可与原生分类同名）')
             .addText(text => text
                 .setPlaceholder('输入分类名称...')
                 .setValue(this.tempCategoryName)
@@ -170,8 +173,10 @@ class CategoryManagerModal extends Modal {
                 .setCta()
                 .onClick(async () => {
                     const name = this.tempCategoryName.trim();
-                    if (name && !this.plugin.settings.categories[name]) {
+                    const invalidNames = ['选项','核心插件','第三方插件','Options','Core plugins','Community plugins'];
+                    if (name && !this.plugin.settings.categories[name] && !invalidNames.includes(name)) {
                         this.plugin.settings.categories[name] = [];
+                        this.plugin.settings.categoryOrder.push(name); 
                         await this.plugin.saveSettings();
                         this.tempCategoryName = '';
                         this.display();
@@ -181,21 +186,87 @@ class CategoryManagerModal extends Modal {
         createSetting.settingEl.style.border = 'none';
         createSetting.settingEl.style.padding = '0';
 
-        const catKeys = Object.keys(this.plugin.settings.categories);
+        const catKeys = this.plugin.settings.categoryOrder.filter(k => this.plugin.settings.categories[k]);
+        
         if (catKeys.length > 0) {
-            this.contentEl.createEl('h4', { text: '📂 现有分类', attr: { style: 'margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid var(--background-modifier-border); color: var(--text-normal);' } });
+            this.contentEl.createEl('h4', { text: '📂 现有分类 (上下拖动可排序)', attr: { style: 'margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid var(--background-modifier-border); color: var(--text-normal);' } });
             
-            // 美化：列表容器
             const listContainer = this.contentEl.createDiv({
-                attr: { style: 'display: flex; flex-direction: column; gap: 12px; max-height: 45vh; overflow-y: auto; padding-right: 5px;' }
+                attr: { style: 'display: flex; flex-direction: column; gap: 10px; max-height: 45vh; overflow-y: auto; padding-right: 5px; padding-bottom: 10px;' }
             });
+
+            let draggedCat: string | null = null;
 
             for (const cat of catKeys) {
                 const itemDiv = listContainer.createDiv({
-                    attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px 15px; background: var(--background-primary); transition: all 0.2s ease;' }
+                    attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px 15px; background: var(--background-primary); transition: opacity 0.2s ease;' }
                 });
 
-                // 如果当前正处于重命名状态
+                if (this.renamingCategory !== cat) {
+                    itemDiv.setAttribute('draggable', 'true');
+                    itemDiv.style.cursor = 'grab';
+
+                    itemDiv.addEventListener('dragstart', (e) => {
+                        draggedCat = cat;
+                        itemDiv.style.opacity = '0.4';
+                        e.dataTransfer?.setData('text/plain', cat);
+                    });
+
+                    itemDiv.addEventListener('dragend', () => {
+                        itemDiv.style.opacity = '1';
+                        draggedCat = null;
+                        Array.from(listContainer.children).forEach(el => {
+                            (el as HTMLElement).style.borderTop = '';
+                            (el as HTMLElement).style.borderBottom = '';
+                            (el as HTMLElement).style.borderColor = 'var(--background-modifier-border)';
+                        });
+                    });
+
+                    itemDiv.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        if (draggedCat && draggedCat !== cat) {
+                            const bounding = itemDiv.getBoundingClientRect();
+                            const offset = bounding.y + bounding.height / 2;
+                            if (e.clientY > offset) {
+                                itemDiv.style.borderBottom = '2px solid var(--interactive-accent)';
+                                itemDiv.style.borderTop = '1px solid var(--background-modifier-border)';
+                            } else {
+                                itemDiv.style.borderTop = '2px solid var(--interactive-accent)';
+                                itemDiv.style.borderBottom = '1px solid var(--background-modifier-border)';
+                            }
+                        }
+                    });
+
+                    itemDiv.addEventListener('dragleave', () => {
+                        itemDiv.style.borderTop = '1px solid var(--background-modifier-border)';
+                        itemDiv.style.borderBottom = '1px solid var(--background-modifier-border)';
+                    });
+
+                    itemDiv.addEventListener('drop', async (e) => {
+                        e.preventDefault();
+                        if (draggedCat && draggedCat !== cat) {
+                            const order = this.plugin.settings.categoryOrder;
+                            const fromIndex = order.indexOf(draggedCat);
+                            const toIndex = order.indexOf(cat);
+                            
+                            const bounding = itemDiv.getBoundingClientRect();
+                            const offset = bounding.y + bounding.height / 2;
+                            let finalIndex = toIndex;
+                            if (e.clientY > offset) {
+                                finalIndex++; 
+                            }
+
+                            order.splice(fromIndex, 1);
+                            if (finalIndex > fromIndex) finalIndex--;
+                            order.splice(finalIndex, 0, draggedCat);
+
+                            await this.plugin.saveSettings();
+                            this.plugin.applyToExistingTabs(); 
+                            this.display();
+                        }
+                    });
+                }
+
                 if (this.renamingCategory === cat) {
                     let newCatName = cat;
                     const renameSetting = new Setting(itemDiv)
@@ -209,20 +280,27 @@ class CategoryManagerModal extends Modal {
                             .setCta()
                             .onClick(async () => {
                                 newCatName = newCatName.trim();
-                                if (newCatName && newCatName !== cat && !this.plugin.settings.categories[newCatName]) {
-                                    // 迁移数据
+                                const invalidNames = ['选项','核心插件','第三方插件','Options','Core plugins','Community plugins'];
+                                if (newCatName && newCatName !== cat && !this.plugin.settings.categories[newCatName] && !invalidNames.includes(newCatName)) {
                                     this.plugin.settings.categories[newCatName] = this.plugin.settings.categories[cat];
                                     delete this.plugin.settings.categories[cat];
                                     
-                                    // 迁移折叠状态
+                                    const orderIdx = this.plugin.settings.categoryOrder.indexOf(cat);
+                                    if (orderIdx > -1) this.plugin.settings.categoryOrder[orderIdx] = newCatName;
+                                    
                                     if (this.plugin.settings.collapsed[cat] !== undefined) {
                                         this.plugin.settings.collapsed[newCatName] = this.plugin.settings.collapsed[cat];
                                         delete this.plugin.settings.collapsed[cat];
+                                    }
+                                    if (this.plugin.settings.hiddenCategories[cat] !== undefined) {
+                                        this.plugin.settings.hiddenCategories[newCatName] = this.plugin.settings.hiddenCategories[cat];
+                                        delete this.plugin.settings.hiddenCategories[cat];
                                     }
                                     
                                     await this.plugin.saveSettings();
                                 }
                                 this.renamingCategory = null;
+                                this.plugin.applyToExistingTabs();
                                 this.display();
                             })
                         )
@@ -236,7 +314,6 @@ class CategoryManagerModal extends Modal {
                     renameSetting.settingEl.style.border = 'none';
                     renameSetting.settingEl.style.padding = '0';
                 } 
-                // 正常显示状态
                 else {
                     const viewSetting = new Setting(itemDiv)
                         .setName(cat)
@@ -265,7 +342,10 @@ class CategoryManagerModal extends Modal {
                             .onClick(async () => {
                                 delete this.plugin.settings.categories[cat];
                                 delete this.plugin.settings.collapsed[cat];
+                                delete this.plugin.settings.hiddenCategories[cat];
+                                this.plugin.settings.categoryOrder = this.plugin.settings.categoryOrder.filter(c => c !== cat);
                                 await this.plugin.saveSettings();
+                                this.plugin.applyToExistingTabs();
                                 this.display();
                             })
                         );
@@ -311,7 +391,6 @@ class CategoryManagerModal extends Modal {
         });
 
         const currentCatPlugins = this.plugin.settings.categories[this.editingCategory!] || [];
-
         const otherCatPlugins = new Set<string>();
         for (const cat in this.plugin.settings.categories) {
             if (cat !== this.editingCategory) {
@@ -346,6 +425,7 @@ class CategoryManagerModal extends Modal {
                         }
                         this.plugin.settings.categories[this.editingCategory!] = list;
                         await this.plugin.saveSettings();
+                        this.plugin.applyToExistingTabs();
                     })
                 );
             row.settingEl.style.padding = '8px 10px';
@@ -403,9 +483,18 @@ export default class PluginRenamer extends Plugin {
             names: { ...DEFAULT_SETTINGS.names, ...(loadedData.names || {}) },
             icons: { ...DEFAULT_SETTINGS.icons, ...(loadedData.icons || {}) },
             hidden: { ...DEFAULT_SETTINGS.hidden, ...(loadedData.hidden || {}) },
+            hiddenCategories: { ...DEFAULT_SETTINGS.hiddenCategories, ...(loadedData.hiddenCategories || {}) },
             categories: { ...DEFAULT_SETTINGS.categories, ...(loadedData.categories || {}) },
+            categoryOrder: loadedData.categoryOrder || [],
             collapsed: { ...DEFAULT_SETTINGS.collapsed, ...(loadedData.collapsed || {}) }
         };
+
+        const currentKeys = Object.keys(this.settings.categories);
+        this.settings.categoryOrder = this.settings.categoryOrder.filter(k => currentKeys.includes(k));
+        currentKeys.forEach(k => {
+            if (!this.settings.categoryOrder.includes(k)) this.settings.categoryOrder.push(k);
+        });
+        await this.saveSettings();
     }
 
     async saveSettings() {
@@ -467,8 +556,11 @@ export default class PluginRenamer extends Plugin {
                             pendingNodes.add(node);
                             shouldUpdate = true;
                         } else if (node.querySelectorAll) {
-                            node.querySelectorAll<HTMLElement>(".vertical-tab-nav-item[data-setting-id]").forEach(tab => pendingNodes.add(tab));
-                            shouldUpdate = true;
+                            const tabs = node.querySelectorAll<HTMLElement>(".vertical-tab-nav-item[data-setting-id]");
+                            if (tabs.length > 0) {
+                                tabs.forEach(tab => pendingNodes.add(tab));
+                                shouldUpdate = true;
+                            }
                         }
                     }
                 });
@@ -479,13 +571,46 @@ export default class PluginRenamer extends Plugin {
                 timeoutId = window.setTimeout(() => {
                     this.isApplying = true;
                     pendingNodes.forEach(node => this.applyIconToNavItem(node));
+                    this.restructureSidebar(); 
                     pendingNodes.clear();
+                    
+                    if (this.mutationObserver) {
+                        this.mutationObserver.takeRecords(); // 防止由于重新挂载节点而导致的死循环
+                    }
                     this.isApplying = false;
                 }, 10);
             }
         });
 
         this.mutationObserver.observe(header, { childList: true, subtree: true });
+    }
+
+    getPluginCategoryMap(): Record<string, string> {
+        const map: Record<string, string> = {};
+        const settingTabs = this.internalApp.setting.settingTabs || [];
+        settingTabs.forEach(tab => map[tab.id] = '选项');
+
+        const pluginTabs = this.internalApp.setting.pluginTabs || [];
+        const manifests = this.internalApp.plugins.manifests || {};
+        
+        pluginTabs.forEach(tab => {
+            if (!manifests[tab.id]) {
+                map[tab.id] = '核心插件';
+            } else {
+                let assigned = false;
+                for (const catName of this.settings.categoryOrder) {
+                    if (this.settings.categories[catName]?.includes(tab.id)) {
+                        map[tab.id] = catName;
+                        assigned = true;
+                        break;
+                    }
+                }
+                if (!assigned) {
+                    map[tab.id] = '第三方插件';
+                }
+            }
+        });
+        return map;
     }
 
     applyToExistingTabs() {
@@ -496,6 +621,11 @@ export default class PluginRenamer extends Plugin {
         header.querySelectorAll<HTMLElement>(".vertical-tab-nav-item[data-setting-id]").forEach(tabEl => {
             this.applyIconToNavItem(tabEl);
         });
+        this.restructureSidebar(); 
+        
+        if (this.mutationObserver) {
+            this.mutationObserver.takeRecords();
+        }
         this.isApplying = false;
     }
 
@@ -553,12 +683,17 @@ export default class PluginRenamer extends Plugin {
             delete tabEl.dataset.originalName;
         }
 
-        if (this.settings.hidden[pluginId] && !isSelf) {
+        const categoryMap = this.getPluginCategoryMap();
+        const category = categoryMap[pluginId] || '';
+        const isCategoryHidden = this.settings.hiddenCategories[category] || false;
+
+        const isHidden = this.settings.hidden[pluginId] || isCategoryHidden;
+
+        if (isHidden && !isSelf) {
             tabEl.style.display = "none";
         } else {
             tabEl.style.display = isThirdParty ? "flex" : "";
             tabEl.style.alignItems = isThirdParty ? "center" : "";
-
             if (isSelf && this.settings.hidden[pluginId]) {
                 delete this.settings.hidden[pluginId];
                 this.saveSettings();
@@ -600,12 +735,134 @@ export default class PluginRenamer extends Plugin {
         }
     }
 
-    restoreExistingTabs() {
-        const header = document.querySelector('.vertical-tab-header');
-        const allTabs = header
-            ? header.querySelectorAll<HTMLElement>(".vertical-tab-nav-item[data-setting-id]")
-            : document.querySelectorAll<HTMLElement>(".vertical-tab-nav-item[data-setting-id]");
+    // ======================= 左侧边栏重构逻辑 =======================
+    restructureSidebar() {
+        const headerContainer = document.querySelector('.vertical-tab-header');
+        if (!headerContainer) return;
 
+        const manifests = this.internalApp.plugins.manifests;
+        const categoryMap = this.getPluginCategoryMap();
+
+        // 1. 将已经被挂载到自定义分类里的插件，临时重置回原生的第三方插件 group 中，防止丢失
+        const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)')).find(group => {
+            const titleEl = group.querySelector('.vertical-tab-header-group-title');
+            return titleEl && (titleEl.textContent?.includes('第三方插件') || titleEl.textContent?.includes('Community plugins'));
+        });
+
+        if (nativeCommunityGroup) {
+            headerContainer.querySelectorAll('.custom-category-group .vertical-tab-nav-item').forEach(tab => {
+                nativeCommunityGroup.appendChild(tab);
+            });
+        }
+
+        // 2. 清理旧的注入组
+        headerContainer.querySelectorAll('.custom-category-group').forEach(el => el.remove());
+
+        // 3. 寻找所有插件项
+        const allTabs = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-nav-item'));
+        const communityTabs = allTabs.filter(tab => {
+            const id = tab.getAttribute('data-setting-id');
+            return id && manifests[id]; 
+        });
+
+        // 4. 为每个分类创建标准的 group 结构并挂载
+        this.settings.categoryOrder.forEach(catName => {
+            const pluginIds = this.settings.categories[catName] || [];
+            if (pluginIds.length === 0) return;
+
+            const tabsForCategory = pluginIds.map(id => 
+                communityTabs.find(t => t.getAttribute('data-setting-id') === id)
+            ).filter(t => t !== undefined) as HTMLElement[];
+
+            if (tabsForCategory.length === 0) return;
+
+            // 像原生一样赋予 vertical-tab-header-group 容器，完美继承 padding 及排版规范
+            const groupEl = document.createElement('div');
+            groupEl.className = 'vertical-tab-header-group custom-category-group';
+            
+            const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
+            if (isCategoryHidden) {
+                groupEl.style.display = 'none';
+            }
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'vertical-tab-header-group-title custom-category-header';
+            titleEl.textContent = catName;
+            
+            groupEl.appendChild(titleEl);
+
+            tabsForCategory.forEach(tab => {
+                groupEl.appendChild(tab);
+            });
+
+            headerContainer.appendChild(groupEl);
+        });
+
+        // 5. 处理官方原生包含外层容器的情况，隐藏整个 Group 而不仅是 Title 
+        const nativeGroups = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)'));
+        
+        nativeGroups.forEach(group => {
+            const titleEl = group.querySelector<HTMLElement>('.vertical-tab-header-group-title');
+            const firstTab = group.querySelector<HTMLElement>('.vertical-tab-nav-item');
+            
+            let catName = '';
+            
+            if (firstTab) {
+                const settingId = firstTab.getAttribute('data-setting-id');
+                if (settingId) {
+                    catName = categoryMap[settingId] || '';
+                }
+            } 
+            if (!catName && titleEl) {
+                const text = titleEl.textContent || '';
+                if (text.includes('核心插件') || text.includes('Core')) catName = '核心插件';
+                else if (text.includes('第三方插件') || text.includes('Community')) catName = '第三方插件';
+                else if (text.includes('选项') || text.includes('Options')) catName = '选项';
+            }
+
+            if (catName) {
+                const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
+                
+                if (isCategoryHidden) {
+                    group.style.display = 'none'; // 彻底隐藏外层容器，清除底端空隙
+                } else {
+                    group.style.display = '';
+                    
+                    if (catName === '第三方插件') {
+                        const remainingTabs = Array.from(group.querySelectorAll<HTMLElement>('.vertical-tab-nav-item'));
+                        // 如果所有第三方插件都分配完毕，自动隐藏第三方插件原生分区
+                        if (remainingTabs.length === 0) {
+                            group.style.display = 'none';
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    restoreExistingTabs() {
+        const headerContainer = document.querySelector('.vertical-tab-header');
+        
+        if (headerContainer) {
+            const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)')).find(group => {
+                const titleEl = group.querySelector('.vertical-tab-header-group-title');
+                return titleEl && (titleEl.textContent?.includes('第三方插件') || titleEl.textContent?.includes('Community plugins'));
+            });
+
+            if (nativeCommunityGroup) {
+                headerContainer.querySelectorAll('.custom-category-group .vertical-tab-nav-item').forEach(tab => {
+                    nativeCommunityGroup.appendChild(tab);
+                });
+            }
+
+            headerContainer.querySelectorAll('.custom-category-group').forEach(el => el.remove());
+            
+            const allGroups = headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group');
+            allGroups.forEach(g => g.style.display = '');
+        }
+
+        const allTabs = document.querySelectorAll<HTMLElement>(".vertical-tab-nav-item[data-setting-id]");
+        
         allTabs.forEach(tabEl => {
             if (tabEl.dataset.originalName) {
                 const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
@@ -656,16 +913,22 @@ class PluginRenamerSettingTab extends PluginSettingTab {
         const topHeaderContainer = containerEl.createDiv();
         topHeaderContainer.style.display = 'flex';
         topHeaderContainer.style.justifyContent = 'space-between';
-        topHeaderContainer.style.alignItems = 'flex-start';
+        topHeaderContainer.style.alignItems = 'center'; 
         topHeaderContainer.style.flexWrap = 'wrap';
         topHeaderContainer.style.gap = '15px';
         topHeaderContainer.style.marginBottom = '25px';
 
         const titleArea = topHeaderContainer.createDiv();
-        titleArea.createEl('h2', { text: '⚙️ 插件名称与图标自定义', cls: 'setting-item-heading' }).style.border = 'none';
-        titleArea.createEl('p', { text: '点击眼睛隐藏/显示，中间改图标，右侧改名称。可分类管理。', cls: "setting-item-description" });
+        titleArea.createEl('h2', { text: '⚙️ 插件名称与图标自定义', cls: 'setting-item-heading', attr: { style: 'border: none; margin: 0;' } });
+        titleArea.createEl('p', { text: '点击眼睛隐藏/显示，中间改图标，右侧改名称。可分类管理。', cls: "setting-item-description", attr: { style: 'margin: 5px 0 0 0;' } });
 
-        const searchInput = topHeaderContainer.createEl('input', {
+        const actionArea = topHeaderContainer.createDiv({ attr: { style: 'display: flex; gap: 10px; align-items: center;' }});
+
+        const catBtnEl = actionArea.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '管理插件分类' }});
+        setIcon(catBtnEl, 'folder-cog');
+        catBtnEl.addEventListener('click', () => new CategoryManagerModal(this.app, this.plugin, () => this.display()).open());
+
+        const searchInput = actionArea.createEl('input', {
             type: 'search',
             placeholder: '🔍 搜索 插件名 / 自定义名 / ID...'
         });
@@ -850,33 +1113,35 @@ class PluginRenamerSettingTab extends PluginSettingTab {
 
         const mainContentEl = containerEl.createDiv();
 
-        // 重新设计的渲染控制函数，增加按需开关折叠和齿轮按钮的能力
-        const renderSection = (title: string, tabs: SettingTabItem[], isThirdParty: boolean, options: { showCategoryBtn?: boolean, allowCollapse?: boolean } = {}) => {
-            const { showCategoryBtn = false, allowCollapse = true } = options;
-            
-            if (tabs.length === 0 && !showCategoryBtn) return; 
+        const renderSection = (title: string, tabs: SettingTabItem[], isThirdParty: boolean, allowCollapse: boolean = true) => {
+            if (tabs.length === 0) return; 
 
             const headingSetting = new Setting(mainContentEl).setName(title).setHeading();
             const grid = createGridContainer(mainContentEl);
             
-            // 是否读取折叠状态（只有允许折叠的模块才生效，第三方模块禁止折叠）
             let isCollapsed = allowCollapse ? (this.plugin.settings.collapsed[title] || false) : false;
             grid.style.display = isCollapsed ? 'none' : 'grid';
 
-            // 恒定存在的分类管理按钮 (齿轮)
-            if (showCategoryBtn) {
+            let currentToggleBtn: ExtraButtonComponent | undefined;
+
+            if (title !== '选项') {
+                const isCategoryHidden = this.plugin.settings.hiddenCategories[title] || false;
+                
                 headingSetting.addExtraButton(btn => {
-                    btn.setIcon('folder-cog')
-                        .setTooltip('分类管理')
-                        .onClick(() => {
-                            new CategoryManagerModal(this.app, this.plugin, () => this.display()).open();
+                    btn.setIcon(isCategoryHidden ? 'eye-off' : 'eye')
+                        .setTooltip(isCategoryHidden ? '取消全部隐藏 (在侧边栏恢复显示)' : '全部隐藏 (在侧边栏隐藏该分类及内容)')
+                        .onClick(async () => {
+                            const currentlyHidden = this.plugin.settings.hiddenCategories[title] || false;
+                            this.plugin.settings.hiddenCategories[title] = !currentlyHidden;
+                            await this.plugin.saveSettings();
+                            btn.setIcon(!currentlyHidden ? 'eye-off' : 'eye')
+                               .setTooltip(!currentlyHidden ? '取消全部隐藏 (在侧边栏恢复显示)' : '全部隐藏 (在侧边栏隐藏该分类及内容)');
+                            
+                            this.plugin.applyToExistingTabs();
                         });
                 });
             }
 
-            let currentToggleBtn: ExtraButtonComponent | undefined;
-            
-            // 仅在允许折叠时添加折叠按钮
             if (allowCollapse) {
                 headingSetting.addExtraButton(btn => {
                     currentToggleBtn = btn;
@@ -897,7 +1162,6 @@ class PluginRenamerSettingTab extends PluginSettingTab {
             tabs.forEach(tab => renderSettingItem(grid, tab, isThirdParty));
         };
 
-
         if (settingTabs.length > 0) {
             renderSection('选项', settingTabs, false);
         }
@@ -907,26 +1171,17 @@ class PluginRenamerSettingTab extends PluginSettingTab {
         }
 
         const categories = this.plugin.settings.categories || {};
-        
         const assignedIds = new Set<string>();
-        for (const cat in categories) {
-            categories[cat].forEach(id => assignedIds.add(id));
-        }
-
-        for (const catName in categories) {
-            const ids = categories[catName];
+        
+        for (const catName of this.plugin.settings.categoryOrder) {
+            const ids = categories[catName] || [];
+            ids.forEach(id => assignedIds.add(id));
             const catTabs = communityPluginTabs.filter(tab => ids.includes(tab.id));
             renderSection(catName, catTabs, true);
         }
 
-        // 剩余未分类的第三方插件
         const otherTabs = communityPluginTabs.filter(tab => !assignedIds.has(tab.id));
-        
-        // 渲染第三方插件区域 (标题永远固定为“第三方插件”，携带管理按钮，并且不可折叠)
-        renderSection('第三方插件', otherTabs, true, { 
-            showCategoryBtn: true, 
-            allowCollapse: false 
-        });
+        renderSection('第三方插件', otherTabs, true, false);
 
         // ======================= 搜索逻辑 =======================
         let searchTimeout: number;
@@ -952,8 +1207,6 @@ class PluginRenamerSettingTab extends PluginSettingTab {
                         group.gridContainer.style.display = hasVisible ? 'grid' : 'none';
                     } else {
                         group.headingEl.style.display = '';
-                        
-                        // 只对拥有折叠按钮（允许折叠）的模块处理折叠恢复，第三方插件组保持展开
                         let isCurrentlyCollapsed = false;
                         if (group.toggleBtn) {
                             isCurrentlyCollapsed = this.plugin.settings.collapsed[group.title] || false;
@@ -961,7 +1214,6 @@ class PluginRenamerSettingTab extends PluginSettingTab {
                                            .setTooltip(isCurrentlyCollapsed ? '展开' : '折叠');
                         }
                         group.gridContainer.style.display = isCurrentlyCollapsed ? 'none' : 'grid';
-                        
                         Array.from(group.gridContainer.children).forEach(el => (el as HTMLElement).style.display = 'flex');
                     }
                 });
