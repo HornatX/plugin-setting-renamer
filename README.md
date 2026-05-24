@@ -3,7 +3,7 @@
 A highly elegant customization tool for Obsidian. It lets you declutter and beautify your Obsidian Settings sidebar by custom-naming tabs, swapping Lucide icons, and hiding unused setting panels with a sleek dashboard.
 
 插件还在测试当中,如果有bug或错误,加群讨论
-QQ交流群:599796635
+QQ交流群:1094620986
 
 [简体中文说明](#简体中文)
 
