@@ -889,11 +889,14 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
     for (const catName of this.plugin.settings.categoryOrder) {
       const ids = categories[catName] || [];
       ids.forEach((id) => assignedIds.add(id));
-      const catTabs = communityPluginTabs.filter((tab) => ids.includes(tab.id));
-      renderSection(catName, catTabs, true);
     }
     const otherTabs = communityPluginTabs.filter((tab) => !assignedIds.has(tab.id));
     renderSection("\u7B2C\u4E09\u65B9\u63D2\u4EF6", otherTabs, true, false);
+    for (const catName of this.plugin.settings.categoryOrder) {
+      const ids = categories[catName] || [];
+      const catTabs = communityPluginTabs.filter((tab) => ids.includes(tab.id));
+      renderSection(catName, catTabs, true);
+    }
     let searchTimeout;
     searchInput.addEventListener("input", (e) => {
       window.clearTimeout(searchTimeout);

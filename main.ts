@@ -1172,15 +1172,22 @@ class PluginRenamerSettingTab extends PluginSettingTab {
         const categories = this.plugin.settings.categories || {};
         const assignedIds = new Set<string>();
         
+        // 1. 先遍历一遍，收集所有已经被分配到自定义分类的插件 ID
         for (const catName of this.plugin.settings.categoryOrder) {
             const ids = categories[catName] || [];
             ids.forEach(id => assignedIds.add(id));
+        }
+
+        // 2. 提前渲染“第三方插件”（即未分类的插件），让它排在自定义分类的上方
+        const otherTabs = communityPluginTabs.filter(tab => !assignedIds.has(tab.id));
+        renderSection('第三方插件', otherTabs, true, false);
+
+        // 3. 接着再按顺序渲染你创建的自定义分类（如“美化”等）
+        for (const catName of this.plugin.settings.categoryOrder) {
+            const ids = categories[catName] || [];
             const catTabs = communityPluginTabs.filter(tab => ids.includes(tab.id));
             renderSection(catName, catTabs, true);
         }
-
-        const otherTabs = communityPluginTabs.filter(tab => !assignedIds.has(tab.id));
-        renderSection('第三方插件', otherTabs, true, false);
 
         // ======================= 搜索逻辑 =======================
         let searchTimeout: number;
