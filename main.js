@@ -55,7 +55,7 @@ var IconPickerModal = class extends import_obsidian.FuzzySuggestModal {
     el.style.alignItems = "center";
     el.style.gap = "10px";
     if (iconName === "\u6062\u590D\u9ED8\u8BA4\u72B6\u6001") {
-      el.createSpan({ text: "\u{1F504} \u6062\u590D\u9ED8\u8BA4 (\u6838\u5FC3\u63D2\u4EF6\u6062\u590D\u539F\u7248 / \u7B2C\u4E09\u65B9\u6062\u590D\u62FC\u56FE)" });
+      el.createSpan({ text: "\u{1F504} \u6062\u590D\u9ED8\u8BA4 (\u6838\u5FC3\u63D2\u4EF6\u6062\u590D\u539F\u7248 / \u7B2C\u4E09\u65B9\u4E0D\u663E\u793A\u56FE\u6807)" });
       return;
     }
     const iconContainer = el.createDiv();
@@ -483,7 +483,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     const customName = this.settings.names[pluginId];
     let targetIcon = this.settings.icons[pluginId];
     if (targetIcon === void 0) {
-      targetIcon = isThirdParty ? "puzzle" : null;
+      targetIcon = null;
     }
     if (customName && customName.trim() !== "") {
       if (!tabEl.dataset.originalName) {
@@ -526,8 +526,8 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     if (isHidden && !isSelf) {
       tabEl.style.display = "none";
     } else {
-      tabEl.style.display = isThirdParty ? "flex" : "";
-      tabEl.style.alignItems = isThirdParty ? "center" : "";
+      tabEl.style.display = isThirdParty && targetIcon ? "flex" : "";
+      tabEl.style.alignItems = isThirdParty && targetIcon ? "center" : "";
       if (isSelf && this.settings.hidden[pluginId]) {
         delete this.settings.hidden[pluginId];
         this.saveSettings();

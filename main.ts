@@ -100,7 +100,7 @@ class IconPickerModal extends FuzzySuggestModal<string> {
         el.style.gap = "10px";
 
         if (iconName === "恢复默认状态") {
-            el.createSpan({ text: "🔄 恢复默认 (核心插件恢复原版 / 第三方恢复拼图)" });
+            el.createSpan({ text: "🔄 恢复默认 (核心插件恢复原版 / 第三方不显示图标)" });
             return;
         }
 
@@ -644,8 +644,9 @@ export default class PluginRenamer extends Plugin {
         const customName = this.settings.names[pluginId];
         let targetIcon: string | null | undefined = this.settings.icons[pluginId];
 
+        // 核心修改：第三方插件未自定义时不分配默认的 puzzle 图标，设为 null 即可不显示
         if (targetIcon === undefined) {
-            targetIcon = isThirdParty ? 'puzzle' : null;
+            targetIcon = null;
         }
 
         if (customName && customName.trim() !== "") {
@@ -692,8 +693,9 @@ export default class PluginRenamer extends Plugin {
         if (isHidden && !isSelf) {
             tabEl.style.display = "none";
         } else {
-            tabEl.style.display = isThirdParty ? "flex" : "";
-            tabEl.style.alignItems = isThirdParty ? "center" : "";
+            // 核心修改：只有当存在注入的新图标且是第三方插件时，才采用 flex 对齐，避免影响原生无图标时候的排版
+            tabEl.style.display = (isThirdParty && targetIcon) ? "flex" : "";
+            tabEl.style.alignItems = (isThirdParty && targetIcon) ? "center" : "";
             if (isSelf && this.settings.hidden[pluginId]) {
                 delete this.settings.hidden[pluginId];
                 this.saveSettings();
