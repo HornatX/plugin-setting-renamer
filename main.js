@@ -496,8 +496,9 @@ var PluginRenamer = class extends import_obsidian.Plugin {
           }
         }
       }
-      if (tabEl.getAttribute("aria-label") !== customName) {
-        tabEl.setAttribute("aria-label", customName);
+      const originalName = tabEl.dataset.originalName;
+      if (originalName && tabEl.getAttribute("aria-label") !== originalName) {
+        tabEl.setAttribute("aria-label", originalName);
       }
       const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
       let node;

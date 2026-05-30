@@ -660,8 +660,11 @@ export default class PluginRenamer extends Plugin {
                     }
                 }
             }
-            if (tabEl.getAttribute('aria-label') !== customName) {
-                tabEl.setAttribute('aria-label', customName);
+            // 【修改点】：将鼠标悬停提示（aria-label）设置为保存好的原名
+            const originalName = tabEl.dataset.originalName;
+            if (originalName && tabEl.getAttribute('aria-label') !== originalName) {
+                // 如果你想加个前缀，比如提示 "原名: xxx"，可以改成 `原名: ${originalName}`
+                tabEl.setAttribute('aria-label', originalName); 
             }
             const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
             let node: Node | null;
