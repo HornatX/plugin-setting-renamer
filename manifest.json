@@ -1,7 +1,7 @@
 {
 	"id": "plugin-setting-renamer",
 	"name": "Setting Renamer",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "1.0.0",
 	"description": "Customize the names of other plugins in the left sidebar settings, with one-click rename to Chinese.",
 	"author": "hornat",
