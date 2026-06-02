@@ -1,4 +1,4 @@
-# Plugin Renamer (设置选项自定义/插件更名器)
+# Setting Renamer (设置选项自定义/插件更名器)
 
 A highly elegant customization tool for Obsidian. It lets you declutter and beautify your Obsidian Settings sidebar by custom-naming tabs, swapping Lucide icons, and hiding unused setting panels with a sleek dashboard.
 
