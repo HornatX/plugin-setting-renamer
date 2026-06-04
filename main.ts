@@ -543,13 +543,14 @@ export default class PluginRenamer extends Plugin {
         if (!header) return;
 
         const pendingNodes = new Set<HTMLElement>();
-        let timeoutId: number | null = null;
+        let updateScheduled = false; // 替代原来的 timeoutId
 
         this.mutationObserver = new MutationObserver((mutations) => {
             if (this.isApplying) return;
 
             let shouldUpdate = false;
             mutations.forEach(m => {
+                // 1. 监听新增的节点（开启插件或 Obsidian 刷新列表时）
                 m.addedNodes.forEach(node => {
                     if (node instanceof HTMLElement) {
                         if (node.classList.contains("vertical-tab-nav-item") && node.hasAttribute("data-setting-id")) {
@@ -564,21 +565,38 @@ export default class PluginRenamer extends Plugin {
                         }
                     }
                 });
+
+                // 2. 监听删除的节点（关闭插件时）
+                // 确保关闭插件时也会触发重排，以此来清理可能变空的分类间距
+                m.removedNodes.forEach(node => {
+                    if (node instanceof HTMLElement && node.classList) {
+                        if (node.classList.contains("vertical-tab-nav-item")) {
+                            shouldUpdate = true;
+                        }
+                    }
+                });
             });
 
-            if (shouldUpdate) {
-                if (timeoutId !== null) window.clearTimeout(timeoutId);
-                timeoutId = window.setTimeout(() => {
+            // 【核心修复】：使用 Promise 微任务替代 setTimeout
+            if (shouldUpdate && !updateScheduled) {
+                updateScheduled = true;
+                
+                // 微任务会在当前宏任务（Obsidian 的更新逻辑）结束后、浏览器重绘（Paint）屏幕之前同步执行
+                // 这意味着用户永远看不到中间原生的乱序状态，彻底解决闪烁问题！
+                Promise.resolve().then(() => {
+                    updateScheduled = false;
                     this.isApplying = true;
+                    
                     pendingNodes.forEach(node => this.applyIconToNavItem(node));
                     this.restructureSidebar(); 
                     pendingNodes.clear();
                     
+                    // 清除由我们自己修改 DOM 产生的监听记录，防止死循环
                     if (this.mutationObserver) {
                         this.mutationObserver.takeRecords(); 
                     }
                     this.isApplying = false;
-                }, 10);
+                });
             }
         });
 
@@ -741,39 +759,107 @@ export default class PluginRenamer extends Plugin {
     }
 
     // ======================= 左侧边栏重构逻辑 =======================
+    // ======================= 左侧边栏重构逻辑 =======================
     restructureSidebar() {
         const headerContainer = document.querySelector('.vertical-tab-header');
         if (!headerContainer) return;
 
         const manifests = this.internalApp.plugins.manifests;
-        const categoryMap = this.getPluginCategoryMap();
-
-        // 1. 将已经被挂载到自定义分类里的插件，临时重置回原生的第三方插件 group 中，防止丢失
-        const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)')).find(group => {
+        
+        // 1. 找到原生的“第三方插件” group
+        const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group')).find(group => {
             const titleEl = group.querySelector('.vertical-tab-header-group-title');
             return titleEl && (titleEl.textContent?.includes('第三方插件') || titleEl.textContent?.includes('Community plugins'));
         });
 
-        if (nativeCommunityGroup) {
-            headerContainer.querySelectorAll('.custom-category-group .vertical-tab-nav-item').forEach(tab => {
-                nativeCommunityGroup.appendChild(tab);
+        // 2. 兼容旧版本：清理旧版本的注入组，把里面的元素安全移回原生组
+        headerContainer.querySelectorAll('.custom-category-group').forEach(el => {
+            if (nativeCommunityGroup) {
+                el.querySelectorAll('.vertical-tab-nav-item').forEach(tab => nativeCommunityGroup.appendChild(tab));
+            }
+            el.remove();
+        });
+
+        if (!nativeCommunityGroup) return;
+
+        // 3. 清理当前的自定义分类占位符
+        nativeCommunityGroup.querySelectorAll('.custom-category-divider').forEach(el => el.remove());
+
+        // 4. 获取所有插件项，进行去重修复“多次生成不消除”的 Bug
+        const allTabs = Array.from(nativeCommunityGroup.querySelectorAll<HTMLElement>('.vertical-tab-nav-item'));
+        const seenIds = new Set<string>();
+        const uniqueTabs: HTMLElement[] = [];
+        
+        // 【核心修复】：收集 Obsidian 内部真实存活的 tab 引用
+        const validNavEls = new Set<HTMLElement>();
+        const validIds = new Set<string>();
+        if (this.internalApp.setting) {
+            (this.internalApp.setting.settingTabs || []).forEach((t: any) => {
+                if (t.navEl) { validNavEls.add(t.navEl); validIds.add(t.id); }
+            });
+            (this.internalApp.setting.pluginTabs || []).forEach((t: any) => {
+                if (t.navEl) { validNavEls.add(t.navEl); validIds.add(t.id); }
             });
         }
+        
+        // 从后往前遍历！保留 Obsidian 最新生成的活动节点，无情删除旧的幽灵死节点
+        for (let i = allTabs.length - 1; i >= 0; i--) {
+            const tab = allTabs[i];
+            const id = tab.getAttribute('data-setting-id');
+            if (id) {
+                // 如果能成功获取到原生有效节点列表，进行精准查杀
+                if (validNavEls.size > 0) {
+                    // 情况 A：插件仍启用，但当前 DOM 并非 Obsidian 内部记录的最新节点 -> 幽灵旧节点，移除！
+                    if (validIds.has(id) && !validNavEls.has(tab)) {
+                        tab.remove();
+                        continue;
+                    }
+                    // 情况 B：插件已关闭（不在 active 列表中），且它属于第三方插件 -> 遗留死节点，移除！
+                    if (!validIds.has(id) && manifests[id]) {
+                        tab.remove();
+                        continue;
+                    }
+                }
 
-        // 2. 清理旧的注入组
-        headerContainer.querySelectorAll('.custom-category-group').forEach(el => el.remove());
+                // 降级兜底方案
+                if (seenIds.has(id)) {
+                    tab.remove(); // 发现重复的老节点直接移除
+                } else {
+                    seenIds.add(id);
+                    uniqueTabs.unshift(tab); // 保持原有顺序
+                }
+            } else {
+                uniqueTabs.unshift(tab);
+            }
+        }
 
-        // 3. 寻找所有插件项
-        const allTabs = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-nav-item'));
-        const communityTabs = allTabs.filter(tab => {
+        const communityTabs = uniqueTabs.filter(tab => {
             const id = tab.getAttribute('data-setting-id');
             return id && manifests[id]; 
         });
 
-        // 定位原生第三方插件之后的插入点，保证新分组都跟在“第三方插件”下方
-        let insertAnchor = nativeCommunityGroup ? nativeCommunityGroup.nextSibling : null;
+        // 5. 将原生标题置顶 (通过 appendChild 重新排队)
+        const nativeTitle = nativeCommunityGroup.querySelector('.vertical-tab-header-group-title');
+        if (nativeTitle) {
+            nativeCommunityGroup.appendChild(nativeTitle); 
+        }
 
-        // 4. 为每个分类创建标准的 group 结构并挂载 (这次去掉标题，只留白)
+        // 6. 分配插件项：先挂载未分类（原生）的第三方插件
+        const assignedIds = new Set<string>();
+        this.settings.categoryOrder.forEach(catName => {
+            (this.settings.categories[catName] || []).forEach(id => assignedIds.add(id));
+        });
+
+        communityTabs.forEach(tab => {
+            const pluginId = tab.getAttribute('data-setting-id')!;
+            if (!assignedIds.has(pluginId)) {
+                const isHidden = this.settings.hidden[pluginId] || false;
+                tab.style.display = isHidden ? 'none' : (tab.querySelector('.custom-icon') ? 'flex' : '');
+                nativeCommunityGroup.appendChild(tab);
+            }
+        });
+
+        // 7. 挂载已分类的第三方插件，不再脱离原生容器，而是插入留白间距
         this.settings.categoryOrder.forEach(catName => {
             const pluginIds = this.settings.categories[catName] || [];
             if (pluginIds.length === 0) return;
@@ -784,62 +870,44 @@ export default class PluginRenamer extends Plugin {
 
             if (tabsForCategory.length === 0) return;
 
-            // 像原生一样赋予 vertical-tab-header-group 容器，以此利用其默认的 padding 形成留白
-            const groupEl = document.createElement('div');
-            groupEl.className = 'vertical-tab-header-group custom-category-group';
-            
             const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-            if (isCategoryHidden) {
-                groupEl.style.display = 'none';
-            }
 
-            // 注意：取消此处对 custom-category-header 的创建，只作纯间距容器
+            // 插入留白占位符形成视觉上的“组”
+            const divider = document.createElement('div');
+            divider.className = 'custom-category-divider';
+            divider.style.height = '20px'; // 留白高度
+            if (isCategoryHidden) divider.style.display = 'none';
+            nativeCommunityGroup.appendChild(divider);
 
             tabsForCategory.forEach(tab => {
-                groupEl.appendChild(tab);
+                if (isCategoryHidden) {
+                    tab.style.display = 'none';
+                } else {
+                    const pluginId = tab.getAttribute('data-setting-id')!;
+                    const isHidden = this.settings.hidden[pluginId] || false;
+                    tab.style.display = isHidden ? 'none' : (tab.querySelector('.custom-icon') ? 'flex' : '');
+                }
+                nativeCommunityGroup.appendChild(tab);
             });
-
-            // 顺序插入保证了排序的一致性
-            if (insertAnchor) {
-                headerContainer.insertBefore(groupEl, insertAnchor);
-            } else {
-                headerContainer.appendChild(groupEl);
-            }
         });
 
-        // 5. 处理官方原生包含外层容器的情况
-        const nativeGroups = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)'));
-        
+        // 8. 确保原生组始终显示，并处理其它原生外层容器（选项、核心插件）的隐藏
+        nativeCommunityGroup.style.display = '';
+
+        const nativeGroups = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group'));
         nativeGroups.forEach(group => {
+            if (group === nativeCommunityGroup) return; 
+            
             const titleEl = group.querySelector<HTMLElement>('.vertical-tab-header-group-title');
-            const firstTab = group.querySelector<HTMLElement>('.vertical-tab-nav-item');
-            
             let catName = '';
-            
-            if (firstTab) {
-                const settingId = firstTab.getAttribute('data-setting-id');
-                if (settingId) {
-                    catName = categoryMap[settingId] || '';
-                }
-            } 
-            if (!catName && titleEl) {
+            if (titleEl) {
                 const text = titleEl.textContent || '';
                 if (text.includes('核心插件') || text.includes('Core')) catName = '核心插件';
-                else if (text.includes('第三方插件') || text.includes('Community')) catName = '第三方插件';
                 else if (text.includes('选项') || text.includes('Options')) catName = '选项';
             }
-
             if (catName) {
                 const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-                
-                // 核心改动：如果该组是“第三方插件”，永远不要隐藏，以此保留“第三方插件”这几个字
-                if (catName === '第三方插件') {
-                    group.style.display = '';
-                } else if (isCategoryHidden) {
-                    group.style.display = 'none'; // 彻底隐藏其它原生的外层容器
-                } else {
-                    group.style.display = '';
-                }
+                group.style.display = isCategoryHidden ? 'none' : '';
             }
         });
     }
@@ -848,19 +916,25 @@ export default class PluginRenamer extends Plugin {
         const headerContainer = document.querySelector('.vertical-tab-header');
         
         if (headerContainer) {
-            const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group:not(.custom-category-group)')).find(group => {
+            const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group')).find(group => {
                 const titleEl = group.querySelector('.vertical-tab-header-group-title');
                 return titleEl && (titleEl.textContent?.includes('第三方插件') || titleEl.textContent?.includes('Community plugins'));
             });
 
             if (nativeCommunityGroup) {
+                // 清除我们注入的空白间隔
+                nativeCommunityGroup.querySelectorAll('.custom-category-divider').forEach(el => el.remove());
+                
+                // 将可能在旧版 custom-category-group 的插件移回
                 headerContainer.querySelectorAll('.custom-category-group .vertical-tab-nav-item').forEach(tab => {
                     nativeCommunityGroup.appendChild(tab);
                 });
             }
 
+            // 清理旧版的注入组
             headerContainer.querySelectorAll('.custom-category-group').forEach(el => el.remove());
             
+            // 恢复所有原生的 group 显示状态
             const allGroups = headerContainer.querySelectorAll<HTMLElement>('.vertical-tab-header-group');
             allGroups.forEach(g => g.style.display = '');
         }

@@ -397,7 +397,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     const header = document.querySelector(".vertical-tab-header");
     if (!header) return;
     const pendingNodes = /* @__PURE__ */ new Set();
-    let timeoutId = null;
+    let updateScheduled = false;
     this.mutationObserver = new MutationObserver((mutations) => {
       if (this.isApplying) return;
       let shouldUpdate = false;
@@ -416,10 +416,18 @@ var PluginRenamer = class extends import_obsidian.Plugin {
             }
           }
         });
+        m.removedNodes.forEach((node) => {
+          if (node instanceof HTMLElement && node.classList) {
+            if (node.classList.contains("vertical-tab-nav-item")) {
+              shouldUpdate = true;
+            }
+          }
+        });
       });
-      if (shouldUpdate) {
-        if (timeoutId !== null) window.clearTimeout(timeoutId);
-        timeoutId = window.setTimeout(() => {
+      if (shouldUpdate && !updateScheduled) {
+        updateScheduled = true;
+        Promise.resolve().then(() => {
+          updateScheduled = false;
           this.isApplying = true;
           pendingNodes.forEach((node) => this.applyIconToNavItem(node));
           this.restructureSidebar();
@@ -428,7 +436,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
             this.mutationObserver.takeRecords();
           }
           this.isApplying = false;
-        }, 10);
+        });
       }
     });
     this.mutationObserver.observe(header, { childList: true, subtree: true });
@@ -563,27 +571,86 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     }
   }
   // ======================= 左侧边栏重构逻辑 =======================
+  // ======================= 左侧边栏重构逻辑 =======================
   restructureSidebar() {
     const headerContainer = document.querySelector(".vertical-tab-header");
     if (!headerContainer) return;
     const manifests = this.internalApp.plugins.manifests;
-    const categoryMap = this.getPluginCategoryMap();
-    const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group:not(.custom-category-group)")).find((group) => {
+    const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group")).find((group) => {
       const titleEl = group.querySelector(".vertical-tab-header-group-title");
       return titleEl && (titleEl.textContent?.includes("\u7B2C\u4E09\u65B9\u63D2\u4EF6") || titleEl.textContent?.includes("Community plugins"));
     });
-    if (nativeCommunityGroup) {
-      headerContainer.querySelectorAll(".custom-category-group .vertical-tab-nav-item").forEach((tab) => {
-        nativeCommunityGroup.appendChild(tab);
+    headerContainer.querySelectorAll(".custom-category-group").forEach((el) => {
+      if (nativeCommunityGroup) {
+        el.querySelectorAll(".vertical-tab-nav-item").forEach((tab) => nativeCommunityGroup.appendChild(tab));
+      }
+      el.remove();
+    });
+    if (!nativeCommunityGroup) return;
+    nativeCommunityGroup.querySelectorAll(".custom-category-divider").forEach((el) => el.remove());
+    const allTabs = Array.from(nativeCommunityGroup.querySelectorAll(".vertical-tab-nav-item"));
+    const seenIds = /* @__PURE__ */ new Set();
+    const uniqueTabs = [];
+    const validNavEls = /* @__PURE__ */ new Set();
+    const validIds = /* @__PURE__ */ new Set();
+    if (this.internalApp.setting) {
+      (this.internalApp.setting.settingTabs || []).forEach((t) => {
+        if (t.navEl) {
+          validNavEls.add(t.navEl);
+          validIds.add(t.id);
+        }
+      });
+      (this.internalApp.setting.pluginTabs || []).forEach((t) => {
+        if (t.navEl) {
+          validNavEls.add(t.navEl);
+          validIds.add(t.id);
+        }
       });
     }
-    headerContainer.querySelectorAll(".custom-category-group").forEach((el) => el.remove());
-    const allTabs = Array.from(headerContainer.querySelectorAll(".vertical-tab-nav-item"));
-    const communityTabs = allTabs.filter((tab) => {
+    for (let i = allTabs.length - 1; i >= 0; i--) {
+      const tab = allTabs[i];
+      const id = tab.getAttribute("data-setting-id");
+      if (id) {
+        if (validNavEls.size > 0) {
+          if (validIds.has(id) && !validNavEls.has(tab)) {
+            tab.remove();
+            continue;
+          }
+          if (!validIds.has(id) && manifests[id]) {
+            tab.remove();
+            continue;
+          }
+        }
+        if (seenIds.has(id)) {
+          tab.remove();
+        } else {
+          seenIds.add(id);
+          uniqueTabs.unshift(tab);
+        }
+      } else {
+        uniqueTabs.unshift(tab);
+      }
+    }
+    const communityTabs = uniqueTabs.filter((tab) => {
       const id = tab.getAttribute("data-setting-id");
       return id && manifests[id];
     });
-    let insertAnchor = nativeCommunityGroup ? nativeCommunityGroup.nextSibling : null;
+    const nativeTitle = nativeCommunityGroup.querySelector(".vertical-tab-header-group-title");
+    if (nativeTitle) {
+      nativeCommunityGroup.appendChild(nativeTitle);
+    }
+    const assignedIds = /* @__PURE__ */ new Set();
+    this.settings.categoryOrder.forEach((catName) => {
+      (this.settings.categories[catName] || []).forEach((id) => assignedIds.add(id));
+    });
+    communityTabs.forEach((tab) => {
+      const pluginId = tab.getAttribute("data-setting-id");
+      if (!assignedIds.has(pluginId)) {
+        const isHidden = this.settings.hidden[pluginId] || false;
+        tab.style.display = isHidden ? "none" : tab.querySelector(".custom-icon") ? "flex" : "";
+        nativeCommunityGroup.appendChild(tab);
+      }
+    });
     this.settings.categoryOrder.forEach((catName) => {
       const pluginIds = this.settings.categories[catName] || [];
       if (pluginIds.length === 0) return;
@@ -591,58 +658,49 @@ var PluginRenamer = class extends import_obsidian.Plugin {
         (id) => communityTabs.find((t) => t.getAttribute("data-setting-id") === id)
       ).filter((t) => t !== void 0);
       if (tabsForCategory.length === 0) return;
-      const groupEl = document.createElement("div");
-      groupEl.className = "vertical-tab-header-group custom-category-group";
       const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-      if (isCategoryHidden) {
-        groupEl.style.display = "none";
-      }
+      const divider = document.createElement("div");
+      divider.className = "custom-category-divider";
+      divider.style.height = "20px";
+      if (isCategoryHidden) divider.style.display = "none";
+      nativeCommunityGroup.appendChild(divider);
       tabsForCategory.forEach((tab) => {
-        groupEl.appendChild(tab);
-      });
-      if (insertAnchor) {
-        headerContainer.insertBefore(groupEl, insertAnchor);
-      } else {
-        headerContainer.appendChild(groupEl);
-      }
-    });
-    const nativeGroups = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group:not(.custom-category-group)"));
-    nativeGroups.forEach((group) => {
-      const titleEl = group.querySelector(".vertical-tab-header-group-title");
-      const firstTab = group.querySelector(".vertical-tab-nav-item");
-      let catName = "";
-      if (firstTab) {
-        const settingId = firstTab.getAttribute("data-setting-id");
-        if (settingId) {
-          catName = categoryMap[settingId] || "";
+        if (isCategoryHidden) {
+          tab.style.display = "none";
+        } else {
+          const pluginId = tab.getAttribute("data-setting-id");
+          const isHidden = this.settings.hidden[pluginId] || false;
+          tab.style.display = isHidden ? "none" : tab.querySelector(".custom-icon") ? "flex" : "";
         }
-      }
-      if (!catName && titleEl) {
+        nativeCommunityGroup.appendChild(tab);
+      });
+    });
+    nativeCommunityGroup.style.display = "";
+    const nativeGroups = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group"));
+    nativeGroups.forEach((group) => {
+      if (group === nativeCommunityGroup) return;
+      const titleEl = group.querySelector(".vertical-tab-header-group-title");
+      let catName = "";
+      if (titleEl) {
         const text = titleEl.textContent || "";
         if (text.includes("\u6838\u5FC3\u63D2\u4EF6") || text.includes("Core")) catName = "\u6838\u5FC3\u63D2\u4EF6";
-        else if (text.includes("\u7B2C\u4E09\u65B9\u63D2\u4EF6") || text.includes("Community")) catName = "\u7B2C\u4E09\u65B9\u63D2\u4EF6";
         else if (text.includes("\u9009\u9879") || text.includes("Options")) catName = "\u9009\u9879";
       }
       if (catName) {
         const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-        if (catName === "\u7B2C\u4E09\u65B9\u63D2\u4EF6") {
-          group.style.display = "";
-        } else if (isCategoryHidden) {
-          group.style.display = "none";
-        } else {
-          group.style.display = "";
-        }
+        group.style.display = isCategoryHidden ? "none" : "";
       }
     });
   }
   restoreExistingTabs() {
     const headerContainer = document.querySelector(".vertical-tab-header");
     if (headerContainer) {
-      const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group:not(.custom-category-group)")).find((group) => {
+      const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group")).find((group) => {
         const titleEl = group.querySelector(".vertical-tab-header-group-title");
         return titleEl && (titleEl.textContent?.includes("\u7B2C\u4E09\u65B9\u63D2\u4EF6") || titleEl.textContent?.includes("Community plugins"));
       });
       if (nativeCommunityGroup) {
+        nativeCommunityGroup.querySelectorAll(".custom-category-divider").forEach((el) => el.remove());
         headerContainer.querySelectorAll(".custom-category-group .vertical-tab-nav-item").forEach((tab) => {
           nativeCommunityGroup.appendChild(tab);
         });
