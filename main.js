@@ -51,9 +51,7 @@ var IconPickerModal = class extends import_obsidian.FuzzySuggestModal {
   }
   renderSuggestion(match, el) {
     const iconName = match.item;
-    el.style.display = "flex";
-    el.style.alignItems = "center";
-    el.style.gap = "10px";
+    el.setCssStyles({ display: "flex", alignItems: "center", gap: "10px" });
     if (iconName === "\u6062\u590D\u9ED8\u8BA4\u72B6\u6001") {
       el.createSpan({ text: "\u{1F504} \u6062\u590D\u9ED8\u8BA4 (\u6838\u5FC3\u63D2\u4EF6\u6062\u590D\u539F\u7248 / \u7B2C\u4E09\u65B9\u4E0D\u663E\u793A\u56FE\u6807)" });
       return;
@@ -95,53 +93,51 @@ var CategoryManagerModal = class extends import_obsidian.Modal {
   }
   renderList() {
     this.titleEl.setText("\u{1F4C1} \u7BA1\u7406\u63D2\u4EF6\u5206\u7C7B");
-    const createSection = this.contentEl.createDiv({
-      attr: { style: "background: var(--background-secondary); padding: 15px; border-radius: 8px; margin-bottom: 25px; border: 1px solid var(--background-modifier-border);" }
-    });
-    createSection.createEl("h4", { text: "\u2728 \u65B0\u5EFA\u5206\u7C7B", attr: { style: "margin-top: 0; margin-bottom: 10px; color: var(--text-normal);" } });
+    const createSection = this.contentEl.createDiv();
+    createSection.setCssStyles({ background: "var(--background-secondary)", padding: "15px", borderRadius: "8px", marginBottom: "25px", border: "1px solid var(--background-modifier-border)" });
+    createSection.createEl("h4", { text: "\u2728 \u65B0\u5EFA\u5206\u7C7B" }).setCssStyles({ marginTop: "0", marginBottom: "10px", color: "var(--text-normal)" });
     const createSetting = new import_obsidian.Setting(createSection).setName("\u5206\u7C7B\u540D\u79F0").setDesc("\u521B\u5EFA\u4E00\u4E2A\u65B0\u7684\u5206\u7C7B\u6A21\u5757\u4EE5\u5F52\u7EB3\u63D2\u4EF6\uFF08\u4E0D\u53EF\u4E0E\u539F\u751F\u5206\u7C7B\u540C\u540D\uFF09").addText(
       (text) => text.setPlaceholder("\u8F93\u5165\u5206\u7C7B\u540D\u79F0...").setValue(this.tempCategoryName).onChange((val) => this.tempCategoryName = val)
-    ).addButton(
-      (btn) => btn.setButtonText("\u521B\u5EFA\u5206\u7C7B").setCta().onClick(async () => {
-        const name = this.tempCategoryName.trim();
-        const invalidNames = ["\u9009\u9879", "\u6838\u5FC3\u63D2\u4EF6", "\u7B2C\u4E09\u65B9\u63D2\u4EF6", "Options", "Core plugins", "Community plugins"];
-        if (name && !this.plugin.settings.categories[name] && !invalidNames.includes(name)) {
-          this.plugin.settings.categories[name] = [];
-          this.plugin.settings.categoryOrder.push(name);
-          await this.plugin.saveSettings();
-          this.tempCategoryName = "";
-          this.display();
-        }
-      })
-    );
-    createSetting.settingEl.style.border = "none";
-    createSetting.settingEl.style.padding = "0";
+    ).addButton((btn) => {
+      const b = btn;
+      b.onClick(() => {
+        (async () => {
+          const name = this.tempCategoryName.trim();
+          const invalidNames = ["\u9009\u9879", "\u6838\u5FC3\u63D2\u4EF6", "\u7B2C\u4E09\u65B9\u63D2\u4EF6", "Options", "Core plugins", "Community plugins"];
+          if (name && !this.plugin.settings.categories[name] && !invalidNames.includes(name)) {
+            this.plugin.settings.categories[name] = [];
+            this.plugin.settings.categoryOrder.push(name);
+            await this.plugin.saveSettings();
+            this.tempCategoryName = "";
+            this.display();
+          }
+        })();
+      });
+      btn.setButtonText("\u521B\u5EFA\u5206\u7C7B").setCta();
+    });
+    createSetting.settingEl.setCssStyles({ border: "none", padding: "0" });
     const catKeys = this.plugin.settings.categoryOrder.filter((k) => this.plugin.settings.categories[k]);
     if (catKeys.length > 0) {
-      this.contentEl.createEl("h4", { text: "\u{1F4C2} \u73B0\u6709\u5206\u7C7B (\u4E0A\u4E0B\u62D6\u52A8\u53EF\u6392\u5E8F)", attr: { style: "margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid var(--background-modifier-border); color: var(--text-normal);" } });
-      const listContainer = this.contentEl.createDiv({
-        attr: { style: "display: flex; flex-direction: column; gap: 10px; max-height: 45vh; overflow-y: auto; padding-right: 5px; padding-bottom: 10px;" }
-      });
+      this.contentEl.createEl("h4", { text: "\u{1F4C2} \u73B0\u6709\u5206\u7C7B (\u4E0A\u4E0B\u62D6\u52A8\u53EF\u6392\u5E8F)" }).setCssStyles({ marginBottom: "15px", paddingBottom: "5px", borderBottom: "1px solid var(--background-modifier-border)", color: "var(--text-normal)" });
+      const listContainer = this.contentEl.createDiv();
+      listContainer.setCssStyles({ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "45vh", overflowY: "auto", paddingRight: "5px", paddingBottom: "10px" });
       let draggedCat = null;
       for (const cat of catKeys) {
-        const itemDiv = listContainer.createDiv({
-          attr: { style: "border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px 15px; background: var(--background-primary); transition: opacity 0.2s ease;" }
-        });
+        const itemDiv = listContainer.createDiv();
+        itemDiv.setCssStyles({ border: "1px solid var(--background-modifier-border)", borderRadius: "8px", padding: "12px 15px", background: "var(--background-primary)", transition: "opacity 0.2s ease" });
         if (this.renamingCategory !== cat) {
           itemDiv.setAttribute("draggable", "true");
-          itemDiv.style.cursor = "grab";
+          itemDiv.setCssStyles({ cursor: "grab" });
           itemDiv.addEventListener("dragstart", (e) => {
             draggedCat = cat;
-            itemDiv.style.opacity = "0.4";
+            itemDiv.setCssStyles({ opacity: "0.4" });
             e.dataTransfer?.setData("text/plain", cat);
           });
           itemDiv.addEventListener("dragend", () => {
-            itemDiv.style.opacity = "1";
+            itemDiv.setCssStyles({ opacity: "1" });
             draggedCat = null;
             Array.from(listContainer.children).forEach((el) => {
-              el.style.borderTop = "";
-              el.style.borderBottom = "";
-              el.style.borderColor = "var(--background-modifier-border)";
+              el.setCssStyles({ borderTop: "", borderBottom: "", borderColor: "var(--background-modifier-border)" });
             });
           });
           itemDiv.addEventListener("dragover", (e) => {
@@ -150,120 +146,130 @@ var CategoryManagerModal = class extends import_obsidian.Modal {
               const bounding = itemDiv.getBoundingClientRect();
               const offset = bounding.y + bounding.height / 2;
               if (e.clientY > offset) {
-                itemDiv.style.borderBottom = "2px solid var(--interactive-accent)";
-                itemDiv.style.borderTop = "1px solid var(--background-modifier-border)";
+                itemDiv.setCssStyles({ borderBottom: "2px solid var(--interactive-accent)", borderTop: "1px solid var(--background-modifier-border)" });
               } else {
-                itemDiv.style.borderTop = "2px solid var(--interactive-accent)";
-                itemDiv.style.borderBottom = "1px solid var(--background-modifier-border)";
+                itemDiv.setCssStyles({ borderTop: "2px solid var(--interactive-accent)", borderBottom: "1px solid var(--background-modifier-border)" });
               }
             }
           });
           itemDiv.addEventListener("dragleave", () => {
-            itemDiv.style.borderTop = "1px solid var(--background-modifier-border)";
-            itemDiv.style.borderBottom = "1px solid var(--background-modifier-border)";
+            itemDiv.setCssStyles({ borderTop: "1px solid var(--background-modifier-border)", borderBottom: "1px solid var(--background-modifier-border)" });
           });
-          itemDiv.addEventListener("drop", async (e) => {
+          itemDiv.addEventListener("drop", (e) => {
             e.preventDefault();
-            if (draggedCat && draggedCat !== cat) {
-              const order = this.plugin.settings.categoryOrder;
-              const fromIndex = order.indexOf(draggedCat);
-              const toIndex = order.indexOf(cat);
-              const bounding = itemDiv.getBoundingClientRect();
-              const offset = bounding.y + bounding.height / 2;
-              let finalIndex = toIndex;
-              if (e.clientY > offset) {
-                finalIndex++;
+            (async () => {
+              if (draggedCat && draggedCat !== cat) {
+                const order = this.plugin.settings.categoryOrder;
+                const fromIndex = order.indexOf(draggedCat);
+                const toIndex = order.indexOf(cat);
+                const bounding = itemDiv.getBoundingClientRect();
+                const offset = bounding.y + bounding.height / 2;
+                let finalIndex = toIndex;
+                if (e.clientY > offset) {
+                  finalIndex++;
+                }
+                order.splice(fromIndex, 1);
+                if (finalIndex > fromIndex) finalIndex--;
+                order.splice(finalIndex, 0, draggedCat);
+                await this.plugin.saveSettings();
+                this.plugin.applyToExistingTabs();
+                this.display();
               }
-              order.splice(fromIndex, 1);
-              if (finalIndex > fromIndex) finalIndex--;
-              order.splice(finalIndex, 0, draggedCat);
-              await this.plugin.saveSettings();
-              this.plugin.applyToExistingTabs();
-              this.display();
-            }
+            })();
           });
         }
         if (this.renamingCategory === cat) {
           let newCatName = cat;
           const renameSetting = new import_obsidian.Setting(itemDiv).setName("\u4FEE\u6539\u540D\u79F0").addText(
             (text) => text.setValue(cat).onChange((val) => newCatName = val)
-          ).addButton(
-            (btn) => btn.setButtonText("\u4FDD\u5B58").setCta().onClick(async () => {
-              newCatName = newCatName.trim();
-              const invalidNames = ["\u9009\u9879", "\u6838\u5FC3\u63D2\u4EF6", "\u7B2C\u4E09\u65B9\u63D2\u4EF6", "Options", "Core plugins", "Community plugins"];
-              if (newCatName && newCatName !== cat && !this.plugin.settings.categories[newCatName] && !invalidNames.includes(newCatName)) {
-                this.plugin.settings.categories[newCatName] = this.plugin.settings.categories[cat];
-                delete this.plugin.settings.categories[cat];
-                const orderIdx = this.plugin.settings.categoryOrder.indexOf(cat);
-                if (orderIdx > -1) this.plugin.settings.categoryOrder[orderIdx] = newCatName;
-                if (this.plugin.settings.collapsed[cat] !== void 0) {
-                  this.plugin.settings.collapsed[newCatName] = this.plugin.settings.collapsed[cat];
-                  delete this.plugin.settings.collapsed[cat];
+          ).addButton((btn) => {
+            const b = btn;
+            btn.setButtonText("\u4FDD\u5B58").setCta();
+            b.onClick(() => {
+              (async () => {
+                newCatName = newCatName.trim();
+                const invalidNames = ["\u9009\u9879", "\u6838\u5FC3\u63D2\u4EF6", "\u7B2C\u4E09\u65B9\u63D2\u4EF6", "Options", "Core plugins", "Community plugins"];
+                if (newCatName && newCatName !== cat && !this.plugin.settings.categories[newCatName] && !invalidNames.includes(newCatName)) {
+                  this.plugin.settings.categories[newCatName] = this.plugin.settings.categories[cat];
+                  delete this.plugin.settings.categories[cat];
+                  const orderIdx = this.plugin.settings.categoryOrder.indexOf(cat);
+                  if (orderIdx > -1) this.plugin.settings.categoryOrder[orderIdx] = newCatName;
+                  if (this.plugin.settings.collapsed[cat] !== void 0) {
+                    this.plugin.settings.collapsed[newCatName] = this.plugin.settings.collapsed[cat];
+                    delete this.plugin.settings.collapsed[cat];
+                  }
+                  if (this.plugin.settings.hiddenCategories[cat] !== void 0) {
+                    this.plugin.settings.hiddenCategories[newCatName] = this.plugin.settings.hiddenCategories[cat];
+                    delete this.plugin.settings.hiddenCategories[cat];
+                  }
+                  await this.plugin.saveSettings();
                 }
-                if (this.plugin.settings.hiddenCategories[cat] !== void 0) {
-                  this.plugin.settings.hiddenCategories[newCatName] = this.plugin.settings.hiddenCategories[cat];
-                  delete this.plugin.settings.hiddenCategories[cat];
-                }
-                await this.plugin.saveSettings();
-              }
-              this.renamingCategory = null;
-              this.plugin.applyToExistingTabs();
-              this.display();
-            })
-          ).addButton(
-            (btn) => btn.setButtonText("\u53D6\u6D88").onClick(() => {
+                this.renamingCategory = null;
+                this.plugin.applyToExistingTabs();
+                this.display();
+              })();
+            });
+          }).addButton((btn) => {
+            const b = btn;
+            btn.setButtonText("\u53D6\u6D88");
+            b.onClick(() => {
               this.renamingCategory = null;
               this.display();
-            })
-          );
-          renameSetting.settingEl.style.border = "none";
-          renameSetting.settingEl.style.padding = "0";
+            });
+          });
+          renameSetting.settingEl.setCssStyles({ border: "none", padding: "0" });
         } else {
-          const viewSetting = new import_obsidian.Setting(itemDiv).setName(cat).setDesc(`\u5305\u542B ${this.plugin.settings.categories[cat].length} \u4E2A\u63D2\u4EF6`).addButton(
-            (btn) => btn.setIcon("pencil").setTooltip("\u4FEE\u6539\u5206\u7C7B\u540D\u79F0").onClick(() => {
+          const viewSetting = new import_obsidian.Setting(itemDiv).setName(cat).setDesc(`\u5305\u542B ${this.plugin.settings.categories[cat].length} \u4E2A\u63D2\u4EF6`).addButton((btn) => {
+            const b = btn;
+            b.setIcon("pencil").setTooltip("\u4FEE\u6539\u5206\u7C7B\u540D\u79F0").onClick(() => {
               this.renamingCategory = cat;
               this.display();
-            })
-          ).addButton(
-            (btn) => btn.setIcon("list").setTooltip("\u7BA1\u7406\u5206\u7C7B\u5185\u7684\u63D2\u4EF6").onClick(() => {
+            });
+          }).addButton((btn) => {
+            const b = btn;
+            b.setIcon("list").setTooltip("\u7BA1\u7406\u5206\u7C7B\u5185\u7684\u63D2\u4EF6").onClick(() => {
               this.editingCategory = cat;
               this.currentView = "edit";
               this.display();
-            })
-          ).addButton(
-            (btn) => btn.setIcon("trash").setTooltip("\u5220\u9664\u8BE5\u5206\u7C7B\uFF08\u63D2\u4EF6\u5C06\u88AB\u79FB\u56DE\u539F\u5217\u8868\uFF09").setWarning().onClick(async () => {
-              delete this.plugin.settings.categories[cat];
-              delete this.plugin.settings.collapsed[cat];
-              delete this.plugin.settings.hiddenCategories[cat];
-              this.plugin.settings.categoryOrder = this.plugin.settings.categoryOrder.filter((c) => c !== cat);
-              await this.plugin.saveSettings();
-              this.plugin.applyToExistingTabs();
-              this.display();
-            })
-          );
-          viewSetting.settingEl.style.border = "none";
-          viewSetting.settingEl.style.padding = "0";
+            });
+          }).addButton((btn) => {
+            const b = btn;
+            b.setIcon("trash").setTooltip("\u5220\u9664\u8BE5\u5206\u7C7B\uFF08\u63D2\u4EF6\u5C06\u88AB\u79FB\u56DE\u539F\u5217\u8868\uFF09").setWarning().onClick(() => {
+              (async () => {
+                delete this.plugin.settings.categories[cat];
+                delete this.plugin.settings.collapsed[cat];
+                delete this.plugin.settings.hiddenCategories[cat];
+                this.plugin.settings.categoryOrder = this.plugin.settings.categoryOrder.filter((c) => c !== cat);
+                await this.plugin.saveSettings();
+                this.plugin.applyToExistingTabs();
+                this.display();
+              })();
+            });
+          });
+          viewSetting.settingEl.setCssStyles({ border: "none", padding: "0" });
         }
       }
     } else {
       this.contentEl.createEl("p", {
-        text: "\u5F53\u524D\u6CA1\u6709\u81EA\u5B9A\u4E49\u5206\u7C7B\u3002\u4E0A\u65B9\u521B\u5EFA\u540E\uFF0C\u5206\u7C7B\u4F1A\u663E\u793A\u5728\u6B64\u5904\u3002",
-        attr: { style: "text-align: center; color: var(--text-muted); margin-top: 20px; padding: 25px; background: var(--background-secondary); border-radius: 8px; border: 1px dashed var(--background-modifier-border);" }
-      });
+        text: "\u5F53\u524D\u6CA1\u6709\u81EA\u5B9A\u4E49\u5206\u7C7B\u3002\u4E0A\u65B9\u521B\u5EFA\u540E\uFF0C\u5206\u7C7B\u4F1A\u663E\u793A\u5728\u6B64\u5904\u3002"
+      }).setCssStyles({ textAlign: "center", color: "var(--text-muted)", marginTop: "20px", padding: "25px", background: "var(--background-secondary)", borderRadius: "8px", border: "1px dashed var(--background-modifier-border)" });
     }
   }
   renderEdit() {
+    if (!this.editingCategory) return;
     this.titleEl.setText(`\u{1F4DD} \u7F16\u8F91\u5206\u7C7B\u63D2\u4EF6: ${this.editingCategory}`);
-    const headerDiv = this.contentEl.createDiv({ attr: { style: "background: var(--background-secondary); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--background-modifier-border); margin-bottom: 20px;" } });
-    const topSetting = new import_obsidian.Setting(headerDiv).setName("\u52FE\u9009\u8981\u52A0\u5165\u6B64\u5206\u7C7B\u7684\u63D2\u4EF6").setDesc("\u63D0\u793A\uFF1A\u5DF2\u5728\u5176\u4ED6\u5206\u7C7B\u4E2D\u7684\u63D2\u4EF6\u4F1A\u81EA\u52A8\u9690\u85CF\u3002").addButton(
-      (btn) => btn.setButtonText("\u8FD4\u56DE\u5217\u8868").onClick(() => {
+    const headerDiv = this.contentEl.createDiv();
+    headerDiv.setCssStyles({ background: "var(--background-secondary)", padding: "10px 15px", borderRadius: "8px", border: "1px solid var(--background-modifier-border)", marginBottom: "20px" });
+    const topSetting = new import_obsidian.Setting(headerDiv).setName("\u52FE\u9009\u8981\u52A0\u5165\u6B64\u5206\u7C7B\u7684\u63D2\u4EF6").setDesc("\u63D0\u793A\uFF1A\u5DF2\u5728\u5176\u4ED6\u5206\u7C7B\u4E2D\u7684\u63D2\u4EF6\u4F1A\u81EA\u52A8\u9690\u85CF\u3002").addButton((btn) => {
+      const b = btn;
+      btn.setButtonText("\u8FD4\u56DE\u5217\u8868");
+      b.onClick(() => {
         this.currentView = "list";
         this.editingCategory = null;
         this.display();
-      })
-    );
-    topSetting.settingEl.style.border = "none";
-    topSetting.settingEl.style.padding = "0";
+      });
+    });
+    topSetting.settingEl.setCssStyles({ border: "none", padding: "0" });
     const internalApp = this.app;
     const manifests = internalApp.plugins.manifests;
     const pluginTabs = internalApp.setting.pluginTabs || [];
@@ -280,9 +286,8 @@ var CategoryManagerModal = class extends import_obsidian.Modal {
         this.plugin.settings.categories[cat].forEach((id) => otherCatPlugins.add(id));
       }
     }
-    const container = this.contentEl.createDiv({
-      attr: { style: "max-height: 50vh; overflow-y: auto; padding: 15px; border: 1px solid var(--background-modifier-border); border-radius: 8px; display: flex; flex-direction: column; gap: 5px;" }
-    });
+    const container = this.contentEl.createDiv();
+    container.setCssStyles({ maxHeight: "50vh", overflowY: "auto", padding: "15px", border: "1px solid var(--background-modifier-border)", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "5px" });
     let availableCount = 0;
     for (const tab of communityTabs) {
       if (otherCatPlugins.has(tab.id)) continue;
@@ -291,24 +296,25 @@ var CategoryManagerModal = class extends import_obsidian.Modal {
       const customName = this.plugin.settings.names[tab.id];
       const displayName = customName ? `${customName} (${originalName})` : originalName;
       const row = new import_obsidian.Setting(container).setName(displayName).addToggle(
-        (toggle) => toggle.setValue(currentCatPlugins.includes(tab.id)).onChange(async (val) => {
-          let list = this.plugin.settings.categories[this.editingCategory];
-          if (val) {
-            if (!list.includes(tab.id)) list.push(tab.id);
-          } else {
-            list = list.filter((id) => id !== tab.id);
-          }
-          this.plugin.settings.categories[this.editingCategory] = list;
-          await this.plugin.saveSettings();
-          this.plugin.applyToExistingTabs();
+        (toggle) => toggle.setValue(currentCatPlugins.includes(tab.id)).onChange((val) => {
+          (async () => {
+            if (!this.editingCategory) return;
+            let list = this.plugin.settings.categories[this.editingCategory];
+            if (val) {
+              if (!list.includes(tab.id)) list.push(tab.id);
+            } else {
+              list = list.filter((id) => id !== tab.id);
+            }
+            this.plugin.settings.categories[this.editingCategory] = list;
+            await this.plugin.saveSettings();
+            this.plugin.applyToExistingTabs();
+          })();
         })
       );
-      row.settingEl.style.padding = "8px 10px";
-      row.settingEl.style.borderBottom = "1px solid var(--background-modifier-border)";
-      row.settingEl.style.borderTop = "none";
+      row.settingEl.setCssStyles({ padding: "8px 10px", borderBottom: "1px solid var(--background-modifier-border)", borderTop: "none" });
     }
     if (availableCount === 0) {
-      container.createEl("p", { text: "\u6CA1\u6709\u53EF\u7528\u7684\u63D2\u4EF6\u4E86\uFF0C\u5176\u4ED6\u63D2\u4EF6\u90FD\u5DF2\u88AB\u5206\u914D\u5B8C\u6BD5\u3002", attr: { style: "text-align: center; color: var(--text-muted); padding: 20px 0;" } });
+      container.createEl("p", { text: "\u6CA1\u6709\u53EF\u7528\u7684\u63D2\u4EF6\u4E86\uFF0C\u5176\u4ED6\u63D2\u4EF6\u90FD\u5DF2\u88AB\u5206\u914D\u5B8C\u6BD5\u3002" }).setCssStyles({ textAlign: "center", color: "var(--text-muted)", padding: "20px 0" });
     }
   }
 };
@@ -325,7 +331,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     this.isApplying = false;
     this.patchSettingOpen();
     this.app.workspace.onLayoutReady(() => {
-      if (document.querySelector(".vertical-tab-header")) {
+      if (activeDocument.body.find(".vertical-tab-header")) {
         this.applyToExistingTabs();
         this.setupMutationObserver();
       }
@@ -364,11 +370,9 @@ var PluginRenamer = class extends import_obsidian.Plugin {
   patchSettingOpen() {
     if (!this.internalApp.setting) return;
     this.originalSettingOpen = this.internalApp.setting.open;
-    const self = this;
-    this.internalApp.setting.open = function(...args) {
-      const result = self.originalSettingOpen?.apply(this, args);
-      self.waitForSettingReady();
-      return result;
+    this.internalApp.setting.open = (...args) => {
+      this.originalSettingOpen?.apply(this.internalApp.setting, args);
+      this.waitForSettingReady();
     };
   }
   unpatchSettingOpen() {
@@ -379,7 +383,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
   waitForSettingReady() {
     let attempts = 0;
     const check = () => {
-      const header = document.querySelector(".vertical-tab-header");
+      const header = activeDocument.body.find(".vertical-tab-header");
       if (header) {
         this.applyToExistingTabs();
         this.setupMutationObserver();
@@ -394,7 +398,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     if (this.mutationObserver) {
       this.mutationObserver.disconnect();
     }
-    const header = document.querySelector(".vertical-tab-header");
+    const header = activeDocument.body.find(".vertical-tab-header");
     if (!header) return;
     const pendingNodes = /* @__PURE__ */ new Set();
     let updateScheduled = false;
@@ -403,12 +407,13 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       let shouldUpdate = false;
       mutations.forEach((m) => {
         m.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            if (node.classList.contains("vertical-tab-nav-item") && node.hasAttribute("data-setting-id")) {
-              pendingNodes.add(node);
+          if ("instanceOf" in node && typeof node.instanceOf === "function" && node.instanceOf(HTMLElement)) {
+            const el = node;
+            if (el.classList.contains("vertical-tab-nav-item") && el.hasAttribute("data-setting-id")) {
+              pendingNodes.add(el);
               shouldUpdate = true;
-            } else if (node.querySelectorAll) {
-              const tabs = node.querySelectorAll(".vertical-tab-nav-item[data-setting-id]");
+            } else if (typeof el.findAll === "function") {
+              const tabs = el.findAll(".vertical-tab-nav-item[data-setting-id]");
               if (tabs.length > 0) {
                 tabs.forEach((tab) => pendingNodes.add(tab));
                 shouldUpdate = true;
@@ -417,8 +422,8 @@ var PluginRenamer = class extends import_obsidian.Plugin {
           }
         });
         m.removedNodes.forEach((node) => {
-          if (node instanceof HTMLElement && node.classList) {
-            if (node.classList.contains("vertical-tab-nav-item")) {
+          if ("instanceOf" in node && typeof node.instanceOf === "function" && node.instanceOf(HTMLElement)) {
+            if (node.classList && node.classList.contains("vertical-tab-nav-item")) {
               shouldUpdate = true;
             }
           }
@@ -426,7 +431,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       });
       if (shouldUpdate && !updateScheduled) {
         updateScheduled = true;
-        Promise.resolve().then(() => {
+        queueMicrotask(() => {
           updateScheduled = false;
           this.isApplying = true;
           pendingNodes.forEach((node) => this.applyIconToNavItem(node));
@@ -467,10 +472,10 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     return map;
   }
   applyToExistingTabs() {
-    const header = document.querySelector(".vertical-tab-header");
+    const header = activeDocument.body.find(".vertical-tab-header");
     if (!header) return;
     this.isApplying = true;
-    header.querySelectorAll(".vertical-tab-nav-item[data-setting-id]").forEach((tabEl) => {
+    header.findAll(".vertical-tab-nav-item[data-setting-id]").forEach((tabEl) => {
       this.applyIconToNavItem(tabEl);
     });
     this.restructureSidebar();
@@ -495,7 +500,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     }
     if (customName && customName.trim() !== "") {
       if (!tabEl.dataset.originalName) {
-        const walker2 = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
+        const walker2 = activeDocument.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
         let node2;
         while (node2 = walker2.nextNode()) {
           if (node2.nodeValue && node2.nodeValue.trim() !== "") {
@@ -508,7 +513,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       if (originalName && tabEl.getAttribute("aria-label") !== originalName) {
         tabEl.setAttribute("aria-label", originalName);
       }
-      const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
+      const walker = activeDocument.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
       let node;
       while (node = walker.nextNode()) {
         if (node.nodeValue && node.nodeValue.trim() !== "") {
@@ -517,7 +522,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
         }
       }
     } else if (tabEl.dataset.originalName) {
-      const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
+      const walker = activeDocument.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
       let node;
       while (node = walker.nextNode()) {
         if (node.nodeValue && node.nodeValue.trim() !== "") {
@@ -533,36 +538,36 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     const isCategoryHidden = this.settings.hiddenCategories[category] || false;
     const isHidden = this.settings.hidden[pluginId] || isCategoryHidden;
     if (isHidden && !isSelf) {
-      tabEl.style.display = "none";
+      tabEl.setCssStyles({ display: "none" });
     } else {
-      tabEl.style.display = isThirdParty && targetIcon ? "flex" : "";
-      tabEl.style.alignItems = isThirdParty && targetIcon ? "center" : "";
+      tabEl.setCssStyles({ display: isThirdParty && targetIcon ? "flex" : "", alignItems: isThirdParty && targetIcon ? "center" : "" });
       if (isSelf && this.settings.hidden[pluginId]) {
         delete this.settings.hidden[pluginId];
-        this.saveSettings();
+        void this.saveSettings();
       }
     }
-    let customIconEl = tabEl.querySelector(".vertical-tab-nav-item-icon.custom-icon");
-    let nativeIconEl = tabEl.querySelector(".vertical-tab-nav-item-icon:not(.custom-icon)");
+    let customIconEl = tabEl.find(".vertical-tab-nav-item-icon.custom-icon");
+    let nativeIconEl = tabEl.find(".vertical-tab-nav-item-icon:not(.custom-icon)");
     if (!targetIcon) {
       if (customIconEl) customIconEl.remove();
-      if (nativeIconEl) nativeIconEl.style.display = "";
+      if (nativeIconEl) nativeIconEl.setCssStyles({ display: "" });
       return;
     }
     if (!customIconEl) {
-      if (nativeIconEl) nativeIconEl.style.display = "none";
-      customIconEl = document.createElement("div");
+      if (nativeIconEl) nativeIconEl.setCssStyles({ display: "none" });
+      customIconEl = activeDocument.createElement("div");
       customIconEl.classList.add("vertical-tab-nav-item-icon", "custom-icon");
       if (isThirdParty) {
-        customIconEl.style.marginRight = "8px";
-        customIconEl.style.display = "flex";
-        customIconEl.style.alignItems = "center";
-        customIconEl.style.justifyContent = "center";
+        customIconEl.setCssStyles({ marginRight: "8px", display: "flex", alignItems: "center", justifyContent: "center" });
       }
       const firstNode = tabEl.firstChild;
-      firstNode ? tabEl.insertBefore(customIconEl, firstNode) : tabEl.appendChild(customIconEl);
+      if (firstNode) {
+        tabEl.insertBefore(customIconEl, firstNode);
+      } else {
+        tabEl.appendChild(customIconEl);
+      }
     } else if (nativeIconEl) {
-      nativeIconEl.style.display = "none";
+      nativeIconEl.setCssStyles({ display: "none" });
     }
     if (customIconEl.dataset.icon !== targetIcon) {
       customIconEl.innerHTML = "";
@@ -570,25 +575,23 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       customIconEl.dataset.icon = targetIcon;
     }
   }
-  // ======================= 左侧边栏重构逻辑 =======================
-  // ======================= 左侧边栏重构逻辑 =======================
   restructureSidebar() {
-    const headerContainer = document.querySelector(".vertical-tab-header");
+    const headerContainer = activeDocument.body.find(".vertical-tab-header");
     if (!headerContainer) return;
     const manifests = this.internalApp.plugins.manifests;
-    const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group")).find((group) => {
-      const titleEl = group.querySelector(".vertical-tab-header-group-title");
+    const nativeCommunityGroup = Array.from(headerContainer.findAll(".vertical-tab-header-group")).find((group) => {
+      const titleEl = group.find(".vertical-tab-header-group-title");
       return titleEl && (titleEl.textContent?.includes("\u7B2C\u4E09\u65B9\u63D2\u4EF6") || titleEl.textContent?.includes("Community plugins"));
     });
-    headerContainer.querySelectorAll(".custom-category-group").forEach((el) => {
+    headerContainer.findAll(".custom-category-group").forEach((el) => {
       if (nativeCommunityGroup) {
-        el.querySelectorAll(".vertical-tab-nav-item").forEach((tab) => nativeCommunityGroup.appendChild(tab));
+        el.findAll(".vertical-tab-nav-item").forEach((tab) => nativeCommunityGroup.appendChild(tab));
       }
       el.remove();
     });
     if (!nativeCommunityGroup) return;
-    nativeCommunityGroup.querySelectorAll(".custom-category-divider").forEach((el) => el.remove());
-    const allTabs = Array.from(nativeCommunityGroup.querySelectorAll(".vertical-tab-nav-item"));
+    nativeCommunityGroup.findAll(".custom-category-divider").forEach((el) => el.remove());
+    const allTabs = Array.from(nativeCommunityGroup.findAll(".vertical-tab-nav-item"));
     const seenIds = /* @__PURE__ */ new Set();
     const uniqueTabs = [];
     const validNavEls = /* @__PURE__ */ new Set();
@@ -635,7 +638,7 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       const id = tab.getAttribute("data-setting-id");
       return id && manifests[id];
     });
-    const nativeTitle = nativeCommunityGroup.querySelector(".vertical-tab-header-group-title");
+    const nativeTitle = nativeCommunityGroup.find(".vertical-tab-header-group-title");
     if (nativeTitle) {
       nativeCommunityGroup.appendChild(nativeTitle);
     }
@@ -645,9 +648,9 @@ var PluginRenamer = class extends import_obsidian.Plugin {
     });
     communityTabs.forEach((tab) => {
       const pluginId = tab.getAttribute("data-setting-id");
-      if (!assignedIds.has(pluginId)) {
+      if (pluginId && !assignedIds.has(pluginId)) {
         const isHidden = this.settings.hidden[pluginId] || false;
-        tab.style.display = isHidden ? "none" : tab.querySelector(".custom-icon") ? "flex" : "";
+        tab.setCssStyles({ display: isHidden ? "none" : tab.find(".custom-icon") ? "flex" : "" });
         nativeCommunityGroup.appendChild(tab);
       }
     });
@@ -659,27 +662,29 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       ).filter((t) => t !== void 0);
       if (tabsForCategory.length === 0) return;
       const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-      const divider = document.createElement("div");
+      const divider = activeDocument.createElement("div");
       divider.className = "custom-category-divider";
-      divider.style.height = "20px";
-      if (isCategoryHidden) divider.style.display = "none";
+      divider.setCssStyles({ height: "20px" });
+      if (isCategoryHidden) divider.setCssStyles({ display: "none" });
       nativeCommunityGroup.appendChild(divider);
       tabsForCategory.forEach((tab) => {
         if (isCategoryHidden) {
-          tab.style.display = "none";
+          tab.setCssStyles({ display: "none" });
         } else {
           const pluginId = tab.getAttribute("data-setting-id");
-          const isHidden = this.settings.hidden[pluginId] || false;
-          tab.style.display = isHidden ? "none" : tab.querySelector(".custom-icon") ? "flex" : "";
+          if (pluginId) {
+            const isHidden = this.settings.hidden[pluginId] || false;
+            tab.setCssStyles({ display: isHidden ? "none" : tab.find(".custom-icon") ? "flex" : "" });
+          }
         }
         nativeCommunityGroup.appendChild(tab);
       });
     });
-    nativeCommunityGroup.style.display = "";
-    const nativeGroups = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group"));
+    nativeCommunityGroup.setCssStyles({ display: "" });
+    const nativeGroups = Array.from(headerContainer.findAll(".vertical-tab-header-group"));
     nativeGroups.forEach((group) => {
       if (group === nativeCommunityGroup) return;
-      const titleEl = group.querySelector(".vertical-tab-header-group-title");
+      const titleEl = group.find(".vertical-tab-header-group-title");
       let catName = "";
       if (titleEl) {
         const text = titleEl.textContent || "";
@@ -688,31 +693,31 @@ var PluginRenamer = class extends import_obsidian.Plugin {
       }
       if (catName) {
         const isCategoryHidden = this.settings.hiddenCategories[catName] || false;
-        group.style.display = isCategoryHidden ? "none" : "";
+        group.setCssStyles({ display: isCategoryHidden ? "none" : "" });
       }
     });
   }
   restoreExistingTabs() {
-    const headerContainer = document.querySelector(".vertical-tab-header");
+    const headerContainer = activeDocument.body.find(".vertical-tab-header");
     if (headerContainer) {
-      const nativeCommunityGroup = Array.from(headerContainer.querySelectorAll(".vertical-tab-header-group")).find((group) => {
-        const titleEl = group.querySelector(".vertical-tab-header-group-title");
+      const nativeCommunityGroup = Array.from(headerContainer.findAll(".vertical-tab-header-group")).find((group) => {
+        const titleEl = group.find(".vertical-tab-header-group-title");
         return titleEl && (titleEl.textContent?.includes("\u7B2C\u4E09\u65B9\u63D2\u4EF6") || titleEl.textContent?.includes("Community plugins"));
       });
       if (nativeCommunityGroup) {
-        nativeCommunityGroup.querySelectorAll(".custom-category-divider").forEach((el) => el.remove());
-        headerContainer.querySelectorAll(".custom-category-group .vertical-tab-nav-item").forEach((tab) => {
+        nativeCommunityGroup.findAll(".custom-category-divider").forEach((el) => el.remove());
+        headerContainer.findAll(".custom-category-group .vertical-tab-nav-item").forEach((tab) => {
           nativeCommunityGroup.appendChild(tab);
         });
       }
-      headerContainer.querySelectorAll(".custom-category-group").forEach((el) => el.remove());
-      const allGroups = headerContainer.querySelectorAll(".vertical-tab-header-group");
-      allGroups.forEach((g) => g.style.display = "");
+      headerContainer.findAll(".custom-category-group").forEach((el) => el.remove());
+      const allGroups = headerContainer.findAll(".vertical-tab-header-group");
+      allGroups.forEach((g) => g.setCssStyles({ display: "" }));
     }
-    const allTabs = document.querySelectorAll(".vertical-tab-nav-item[data-setting-id]");
+    const allTabs = activeDocument.body.findAll(".vertical-tab-nav-item[data-setting-id]");
     allTabs.forEach((tabEl) => {
       if (tabEl.dataset.originalName) {
-        const walker = document.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
+        const walker = activeDocument.createTreeWalker(tabEl, NodeFilter.SHOW_TEXT, null);
         let node;
         while (node = walker.nextNode()) {
           if (node.nodeValue && node.nodeValue.trim() !== "") {
@@ -723,12 +728,11 @@ var PluginRenamer = class extends import_obsidian.Plugin {
         tabEl.setAttribute("aria-label", tabEl.dataset.originalName);
         delete tabEl.dataset.originalName;
       }
-      let customIconEl = tabEl.querySelector(".vertical-tab-nav-item-icon.custom-icon");
+      let customIconEl = tabEl.find(".vertical-tab-nav-item-icon.custom-icon");
       if (customIconEl) customIconEl.remove();
-      let nativeIconEl = tabEl.querySelector(".vertical-tab-nav-item-icon:not(.custom-icon)");
-      if (nativeIconEl) nativeIconEl.style.display = "";
-      tabEl.style.display = "";
-      tabEl.style.alignItems = "";
+      let nativeIconEl = tabEl.find(".vertical-tab-nav-item-icon:not(.custom-icon)");
+      if (nativeIconEl) nativeIconEl.setCssStyles({ display: "" });
+      tabEl.setCssStyles({ display: "", alignItems: "" });
     });
   }
 };
@@ -746,16 +750,11 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.empty();
     const isPhone = import_obsidian.Platform.isPhone;
     const topHeaderContainer = containerEl.createDiv();
-    topHeaderContainer.style.display = "flex";
-    topHeaderContainer.style.justifyContent = "space-between";
-    topHeaderContainer.style.alignItems = "center";
-    topHeaderContainer.style.flexWrap = "wrap";
-    topHeaderContainer.style.gap = "15px";
-    topHeaderContainer.style.marginBottom = "25px";
+    topHeaderContainer.setCssStyles({ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px", marginBottom: "25px" });
     const titleArea = topHeaderContainer.createDiv();
-    titleArea.createEl("h2", { text: "\u2699\uFE0F \u63D2\u4EF6\u540D\u79F0\u4E0E\u56FE\u6807\u81EA\u5B9A\u4E49", cls: "setting-item-heading", attr: { style: "border: none; margin: 0;" } });
-    titleArea.createEl("p", { text: "\u70B9\u51FB\u773C\u775B\u9690\u85CF/\u663E\u793A\uFF0C\u4E2D\u95F4\u6539\u56FE\u6807\uFF0C\u53F3\u4FA7\u6539\u540D\u79F0\u3002\u53EF\u5206\u7C7B\u7BA1\u7406\u3002", cls: "setting-item-description", attr: { style: "margin: 5px 0 0 0;" } });
-    const actionArea = topHeaderContainer.createDiv({ attr: { style: "display: flex; gap: 10px; align-items: center;" } });
+    new import_obsidian.Setting(titleArea).setName("\u2699\uFE0F \u63D2\u4EF6\u540D\u79F0\u4E0E\u56FE\u6807\u81EA\u5B9A\u4E49").setDesc("\u70B9\u51FB\u773C\u775B\u9690\u85CF/\u663E\u793A\uFF0C\u4E2D\u95F4\u6539\u56FE\u6807\uFF0C\u53F3\u4FA7\u6539\u540D\u79F0\u3002\u53EF\u5206\u7C7B\u7BA1\u7406\u3002").setHeading();
+    const actionArea = topHeaderContainer.createDiv();
+    actionArea.setCssStyles({ display: "flex", gap: "10px", alignItems: "center" });
     const catBtnEl = actionArea.createEl("button", { cls: "clickable-icon", attr: { "aria-label": "\u7BA1\u7406\u63D2\u4EF6\u5206\u7C7B" } });
     (0, import_obsidian.setIcon)(catBtnEl, "folder-cog");
     catBtnEl.addEventListener("click", () => new CategoryManagerModal(this.app, this.plugin, () => this.display()).open());
@@ -763,9 +762,7 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
       type: "search",
       placeholder: "\u{1F50D} \u641C\u7D22 \u63D2\u4EF6\u540D / \u81EA\u5B9A\u4E49\u540D / ID..."
     });
-    searchInput.style.flex = "1";
-    searchInput.style.minWidth = "250px";
-    searchInput.style.maxWidth = "350px";
+    searchInput.setCssStyles({ flex: "1", minWidth: "250px", maxWidth: "350px" });
     const settingTabs = this.internalApp.setting.settingTabs || [];
     const pluginTabs = this.internalApp.setting.pluginTabs || [];
     const manifests = this.internalApp.plugins.manifests || {};
@@ -782,10 +779,7 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
     const groups = [];
     const createGridContainer = (parentEl) => {
       const gridEl = parentEl.createDiv();
-      gridEl.style.display = "grid";
-      gridEl.style.gridTemplateColumns = isPhone ? "1fr" : "repeat(2, minmax(0, 1fr))";
-      gridEl.style.gap = "15px";
-      gridEl.style.marginBottom = "30px";
+      gridEl.setCssStyles({ display: "grid", gridTemplateColumns: isPhone ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "15px", marginBottom: "30px" });
       return gridEl;
     };
     const renderSettingItem = (gridContainer, tab, isThirdParty) => {
@@ -796,104 +790,100 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
       const isHidden = this.plugin.settings.hidden[pluginId];
       const setting = new import_obsidian.Setting(gridContainer).setName(originalName).setDesc(`ID: ${pluginId}`);
       if (isSelf) {
-        setting.settingEl.style.backgroundColor = "var(--background-primary)";
+        setting.settingEl.setCssStyles({ backgroundColor: "var(--background-primary)" });
         setting.setDesc(`ID: ${pluginId} (\u672C\u63D2\u4EF6)`);
       }
       setting.nameEl.empty();
-      setting.nameEl.style.display = "flex";
-      setting.nameEl.style.alignItems = "center";
-      setting.nameEl.style.overflow = "hidden";
+      setting.nameEl.setCssStyles({ display: "flex", alignItems: "center", overflow: "hidden" });
       const currentIcon = this.plugin.settings.icons[pluginId];
       const displayIcon = currentIcon !== void 0 ? currentIcon : fallbackIcon;
-      const iconEl = document.createElement("span");
-      iconEl.style.marginRight = "8px";
-      iconEl.style.display = "inline-flex";
-      iconEl.style.alignItems = "center";
-      iconEl.style.flexShrink = "0";
+      const iconEl = activeDocument.createElement("span");
+      iconEl.setCssStyles({ marginRight: "8px", display: "inline-flex", alignItems: "center", flexShrink: "0" });
       (0, import_obsidian.setIcon)(iconEl, displayIcon || "image");
-      const nameSpan = document.createElement("span");
+      const nameSpan = activeDocument.createElement("span");
       nameSpan.textContent = this.plugin.settings.names[pluginId] || originalName;
       if (isPhone) {
-        nameSpan.style.whiteSpace = "normal";
-        nameSpan.style.wordBreak = "break-word";
+        nameSpan.setCssStyles({ whiteSpace: "normal", wordBreak: "break-word" });
       } else {
-        nameSpan.style.whiteSpace = "nowrap";
-        nameSpan.style.overflow = "hidden";
-        nameSpan.style.textOverflow = "ellipsis";
+        nameSpan.setCssStyles({ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" });
       }
-      nameSpan.style.flex = "1 1 auto";
+      nameSpan.setCssStyles({ flex: "1 1 auto" });
       setting.nameEl.appendChild(iconEl);
       setting.nameEl.appendChild(nameSpan);
       setting.addExtraButton((btn) => {
-        btn.setIcon("settings").setTooltip("\u8DF3\u8F6C\u5230\u8BE5\u9762\u677F\u8BBE\u7F6E").onClick(() => {
-          if (this.internalApp.setting && typeof this.internalApp.setting.openTabById === "function") {
-            this.internalApp.setting.openTabById(pluginId);
+        const b = btn;
+        b.setIcon("settings").setTooltip("\u8DF3\u8F6C\u5230\u8BE5\u9762\u677F\u8BBE\u7F6E").onClick(() => {
+          if (this.internalApp.setting && typeof this.internalApp.setting["openTabById"] === "function") {
+            this.internalApp.setting["openTabById"](pluginId);
           }
         });
       });
       if (isSelf) {
         setting.addExtraButton((btn) => {
-          btn.setIcon("lock").setTooltip("\u9632\u5446\u4FDD\u62A4\uFF1A\u4E0D\u5141\u8BB8\u9690\u85CF\u672C\u63D2\u4EF6\u81EA\u8EAB").setDisabled(true);
-          setting.settingEl.style.opacity = "1";
+          const b = btn;
+          b.setIcon("lock").setTooltip("\u9632\u5446\u4FDD\u62A4\uFF1A\u4E0D\u5141\u8BB8\u9690\u85CF\u672C\u63D2\u4EF6\u81EA\u8EAB").setDisabled(true);
+          setting.settingEl.setCssStyles({ opacity: "1" });
         });
       } else {
         setting.addExtraButton((btn) => {
-          btn.setIcon(isHidden ? "eye-off" : "eye").setTooltip(isHidden ? "\u53D6\u6D88\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u663E\u793A)" : "\u5728\u4FA7\u8FB9\u680F\u4E2D\u9690\u85CF\u6B64\u9762\u677F").onClick(async () => {
-            if (this.plugin.settings.hidden[pluginId]) {
-              delete this.plugin.settings.hidden[pluginId];
-              btn.setIcon("eye").setTooltip("\u9690\u85CF\u9762\u677F");
-              setting.settingEl.style.opacity = "1";
-            } else {
-              this.plugin.settings.hidden[pluginId] = true;
-              btn.setIcon("eye-off").setTooltip("\u53D6\u6D88\u9690\u85CF");
-              setting.settingEl.style.opacity = "0.5";
-            }
-            await this.plugin.saveSettings();
-            this.plugin.applyToExistingTabs();
+          const b = btn;
+          b.setIcon(isHidden ? "eye-off" : "eye").setTooltip(isHidden ? "\u53D6\u6D88\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u663E\u793A)" : "\u5728\u4FA7\u8FB9\u680F\u4E2D\u9690\u85CF\u6B64\u9762\u677F").onClick(() => {
+            (async () => {
+              if (this.plugin.settings.hidden[pluginId]) {
+                delete this.plugin.settings.hidden[pluginId];
+                b.setIcon("eye").setTooltip("\u9690\u85CF\u9762\u677F");
+                setting.settingEl.setCssStyles({ opacity: "1" });
+              } else {
+                this.plugin.settings.hidden[pluginId] = true;
+                b.setIcon("eye-off").setTooltip("\u53D6\u6D88\u9690\u85CF");
+                setting.settingEl.setCssStyles({ opacity: "0.5" });
+              }
+              await this.plugin.saveSettings();
+              this.plugin.applyToExistingTabs();
+            })();
           });
         });
       }
       setting.addExtraButton((btn) => {
-        btn.setIcon(displayIcon || "image").setTooltip("\u66F4\u6539\u4FA7\u8FB9\u680F\u56FE\u6807").onClick(() => {
-          new IconPickerModal(this.app, pluginId, this.plugin, async (selectedIcon) => {
-            if (selectedIcon === null) {
-              delete this.plugin.settings.icons[pluginId];
-            } else {
-              this.plugin.settings.icons[pluginId] = selectedIcon;
-            }
-            const newIcon = selectedIcon || fallbackIcon || "image";
-            btn.setIcon(newIcon);
-            (0, import_obsidian.setIcon)(iconEl, newIcon);
-            await this.plugin.saveSettings();
-            this.plugin.applyToExistingTabs();
+        const b = btn;
+        b.setIcon(displayIcon || "image").setTooltip("\u66F4\u6539\u4FA7\u8FB9\u680F\u56FE\u6807").onClick(() => {
+          new IconPickerModal(this.app, pluginId, this.plugin, (selectedIcon) => {
+            (async () => {
+              if (selectedIcon === null) {
+                delete this.plugin.settings.icons[pluginId];
+              } else {
+                this.plugin.settings.icons[pluginId] = selectedIcon;
+              }
+              const newIcon = selectedIcon || fallbackIcon || "image";
+              b.setIcon(newIcon);
+              (0, import_obsidian.setIcon)(iconEl, newIcon);
+              await this.plugin.saveSettings();
+              this.plugin.applyToExistingTabs();
+            })();
           }).open();
         });
       });
       setting.addText((text) => {
-        text.setPlaceholder("\u8F93\u5165\u60F3\u663E\u793A\u7684...").setValue(this.plugin.settings.names[pluginId] || "").onChange(async (value) => {
-          this.plugin.settings.names[pluginId] = value;
-          await this.plugin.saveSettings();
-          nameSpan.textContent = value.trim() !== "" ? value : originalName;
-          this.plugin.applyToExistingTabs();
+        text.setPlaceholder("\u8F93\u5165\u60F3\u663E\u793A\u7684...").setValue(this.plugin.settings.names[pluginId] || "").onChange((value) => {
+          (async () => {
+            this.plugin.settings.names[pluginId] = value;
+            await this.plugin.saveSettings();
+            nameSpan.textContent = value.trim() !== "" ? value : originalName;
+            this.plugin.applyToExistingTabs();
+          })();
         });
-        text.inputEl.style.width = isPhone ? "auto" : "90px";
+        text.inputEl.setCssStyles({ width: isPhone ? "auto" : "90px" });
         if (isPhone) {
-          text.inputEl.style.flex = "1";
-          text.inputEl.style.minWidth = "100px";
+          text.inputEl.setCssStyles({ flex: "1", minWidth: "100px" });
         }
       });
-      setting.settingEl.style.border = "1px solid var(--background-modifier-border)";
-      setting.settingEl.style.borderRadius = "8px";
-      setting.settingEl.style.padding = "12px 15px";
-      setting.settingEl.style.margin = "0";
+      setting.settingEl.setCssStyles({ border: "1px solid var(--background-modifier-border)", borderRadius: "8px", padding: "12px 15px", margin: "0" });
       if (!isSelf) {
-        setting.settingEl.style.backgroundColor = "var(--background-secondary)";
+        setting.settingEl.setCssStyles({ backgroundColor: "var(--background-secondary)" });
       }
-      setting.infoEl.style.flex = "1 1 auto";
-      setting.infoEl.style.overflow = "hidden";
-      setting.infoEl.style.minWidth = "0";
+      setting.infoEl.setCssStyles({ flex: "1 1 auto", overflow: "hidden", minWidth: "0" });
       if (isHidden && !isSelf) {
-        setting.settingEl.style.opacity = "0.5";
+        setting.settingEl.setCssStyles({ opacity: "0.5" });
       }
       searchItems.push({
         settingEl: setting.settingEl,
@@ -908,29 +898,35 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
       const headingSetting = new import_obsidian.Setting(mainContentEl).setName(title).setHeading();
       const grid = createGridContainer(mainContentEl);
       let isCollapsed = allowCollapse ? this.plugin.settings.collapsed[title] || false : false;
-      grid.style.display = isCollapsed ? "none" : "grid";
+      grid.setCssStyles({ display: isCollapsed ? "none" : "grid" });
       let currentToggleBtn;
       if (title !== "\u9009\u9879") {
         const isCategoryHidden = this.plugin.settings.hiddenCategories[title] || false;
         headingSetting.addExtraButton((btn) => {
-          btn.setIcon(isCategoryHidden ? "eye-off" : "eye").setTooltip(isCategoryHidden ? "\u53D6\u6D88\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u6062\u590D\u663E\u793A)" : "\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u9690\u85CF\u8BE5\u5206\u7C7B\u53CA\u5185\u5BB9)").onClick(async () => {
-            const currentlyHidden = this.plugin.settings.hiddenCategories[title] || false;
-            this.plugin.settings.hiddenCategories[title] = !currentlyHidden;
-            await this.plugin.saveSettings();
-            btn.setIcon(!currentlyHidden ? "eye-off" : "eye").setTooltip(!currentlyHidden ? "\u53D6\u6D88\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u6062\u590D\u663E\u793A)" : "\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u9690\u85CF\u8BE5\u5206\u7C7B\u53CA\u5185\u5BB9)");
-            this.plugin.applyToExistingTabs();
+          const b = btn;
+          b.setIcon(isCategoryHidden ? "eye-off" : "eye").setTooltip(isCategoryHidden ? "\u53D6\u6D88\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u6062\u590D\u663E\u793A)" : "\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u9690\u85CF\u8BE5\u5206\u7C7B\u53CA\u5185\u5BB9)").onClick(() => {
+            (async () => {
+              const currentlyHidden = this.plugin.settings.hiddenCategories[title] || false;
+              this.plugin.settings.hiddenCategories[title] = !currentlyHidden;
+              await this.plugin.saveSettings();
+              b.setIcon(!currentlyHidden ? "eye-off" : "eye").setTooltip(!currentlyHidden ? "\u53D6\u6D88\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u6062\u590D\u663E\u793A)" : "\u5168\u90E8\u9690\u85CF (\u5728\u4FA7\u8FB9\u680F\u9690\u85CF\u8BE5\u5206\u7C7B\u53CA\u5185\u5BB9)");
+              this.plugin.applyToExistingTabs();
+            })();
           });
         });
       }
       if (allowCollapse) {
         headingSetting.addExtraButton((btn) => {
           currentToggleBtn = btn;
-          btn.setIcon(isCollapsed ? "chevron-right" : "chevron-down").setTooltip(isCollapsed ? "\u5C55\u5F00" : "\u6298\u53E0").onClick(async () => {
-            isCollapsed = !isCollapsed;
-            this.plugin.settings.collapsed[title] = isCollapsed;
-            await this.plugin.saveSettings();
-            btn.setIcon(isCollapsed ? "chevron-right" : "chevron-down").setTooltip(isCollapsed ? "\u5C55\u5F00" : "\u6298\u53E0");
-            grid.style.display = isCollapsed ? "none" : "grid";
+          const b = btn;
+          b.setIcon(isCollapsed ? "chevron-right" : "chevron-down").setTooltip(isCollapsed ? "\u5C55\u5F00" : "\u6298\u53E0").onClick(() => {
+            (async () => {
+              isCollapsed = !isCollapsed;
+              this.plugin.settings.collapsed[title] = isCollapsed;
+              await this.plugin.saveSettings();
+              b.setIcon(isCollapsed ? "chevron-right" : "chevron-down").setTooltip(isCollapsed ? "\u5C55\u5F00" : "\u6298\u53E0");
+              grid.setCssStyles({ display: isCollapsed ? "none" : "grid" });
+            })();
           });
         });
       }
@@ -966,22 +962,30 @@ var PluginRenamerSettingTab = class extends import_obsidian.PluginSettingTab {
         searchItems.forEach((item) => {
           const customName = item.getCustomName();
           const match = item.pluginId.includes(query) || item.originalName.includes(query) || customName.includes(query);
-          item.settingEl.style.display = match ? "flex" : "none";
+          item.settingEl.setCssStyles({ display: match ? "flex" : "none" });
         });
         groups.forEach((group) => {
           if (isSearching) {
-            const hasVisible = Array.from(group.gridContainer.children).some((el) => el.style.display !== "none");
-            group.headingEl.style.display = hasVisible ? "" : "none";
-            group.gridContainer.style.display = hasVisible ? "grid" : "none";
+            let hasVisible = false;
+            for (let i = 0; i < group.gridContainer.children.length; i++) {
+              const child = group.gridContainer.children[i];
+              if (child.style.display !== "none") {
+                hasVisible = true;
+                break;
+              }
+            }
+            group.headingEl.setCssStyles({ display: hasVisible ? "" : "none" });
+            group.gridContainer.setCssStyles({ display: hasVisible ? "grid" : "none" });
           } else {
-            group.headingEl.style.display = "";
+            group.headingEl.setCssStyles({ display: "" });
             let isCurrentlyCollapsed = false;
             if (group.toggleBtn) {
               isCurrentlyCollapsed = this.plugin.settings.collapsed[group.title] || false;
-              group.toggleBtn.setIcon(isCurrentlyCollapsed ? "chevron-right" : "chevron-down").setTooltip(isCurrentlyCollapsed ? "\u5C55\u5F00" : "\u6298\u53E0");
+              const b = group.toggleBtn;
+              b.setIcon(isCurrentlyCollapsed ? "chevron-right" : "chevron-down").setTooltip(isCurrentlyCollapsed ? "\u5C55\u5F00" : "\u6298\u53E0");
             }
-            group.gridContainer.style.display = isCurrentlyCollapsed ? "none" : "grid";
-            Array.from(group.gridContainer.children).forEach((el) => el.style.display = "flex");
+            group.gridContainer.setCssStyles({ display: isCurrentlyCollapsed ? "none" : "grid" });
+            Array.from(group.gridContainer.children).forEach((el) => el.setCssStyles({ display: "flex" }));
           }
         });
       }, 150);
